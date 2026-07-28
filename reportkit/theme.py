@@ -56,6 +56,8 @@ BODY_INK      = ( 36,  59,  51)  # #243B33 — paragraph text on white
 RULE_SOFT     = (201, 210, 204)  # #C9D2CC — secondary-head hairline
 FOOTNOTE_GREY = (166, 176, 184)  # #A6B0B8 — footnote / caption
 TEXT          = ( 43,  61,  79)  # #2B3D4F — default body/running text ink
+TEXT_SOFT     = (107, 114, 128)  # #6B7280 — secondary ink (footnotes, legalese)
+ROW_ALT       = (245, 246, 250)  # #F5F6FA — table zebra-row fill
 
 
 def blend(rgb: tuple, target: tuple, f: float) -> tuple:

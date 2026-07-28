@@ -8,7 +8,10 @@ imperatively (or hand over a document spec) and feed in your own content; the
     reportkit.theme    the visual-identity layer: `ReportTheme`, the declarative
                        `SpecTheme`, palette-derived `ThemeTokens`, shape and
                        gradient primitives, and the theme registry.
-    reportkit.images   dependency-light image helpers (aspect-correct crops).
+    reportkit.images   image loading, sanitising and embedding — including the
+                       path-containment, URL-scheme and decompression-bomb guards.
+    reportkit.color    CSS colour parsing and brand palette remapping.
+    reportkit.charts   [charts extra] Plotly figure -> brand-coloured PNG bytes.
 
 Extraction in progress — `reportkit.document` (the themed builder and its
 blocks), `reportkit.branding`, `reportkit.fonts`, `reportkit.spec` and the
@@ -41,7 +44,8 @@ from reportkit.theme import (  # noqa: F401
     HEXAGON_SPEC,
     MERCATOR_SPEC,
 )
-from reportkit.images import cover_crop  # noqa: F401
+from reportkit.images import cover_crop, configure_limits  # noqa: F401
+from reportkit.color import parse_rgb, remap_color, rgb_to_hue  # noqa: F401
 
 __all__ = [
     "__version__",
@@ -58,4 +62,8 @@ __all__ = [
     "HEXAGON_SPEC",
     "MERCATOR_SPEC",
     "cover_crop",
+    "configure_limits",
+    "parse_rgb",
+    "remap_color",
+    "rgb_to_hue",
 ]
