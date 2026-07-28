@@ -1,0 +1,35 @@
+# ── Python ────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Virtual environments ──────────────────────────────────
+.venv/
+venv/
+env/
+
+# ── Tooling ───────────────────────────────────────────────
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# ── OS ────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Licensed brand assets ─────────────────────────────────
+# reportkit ships only the OFL-licensed IBM Plex Sans. A host's own brand fonts
+# and brand configs are the host's to keep — never vendor them here, and never
+# commit a client's palette, logo or cover imagery into a reusable library.
+reportkit/fonts/brand/
+brand/
+*.brand.json
+
+# ── Test output ───────────────────────────────────────────
+tests/_out/
+*.pdf

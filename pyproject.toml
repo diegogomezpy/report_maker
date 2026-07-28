@@ -1,0 +1,58 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "reportkit"
+version = "0.1.0"
+description = "A reusable toolkit for themed, brandable PDF reports."
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{ name = "Diego Gomez" }]
+license = "MIT"
+license-files = ["LICENSE", "reportkit/fonts/OFL.txt"]
+keywords = ["pdf", "report", "fpdf", "branding", "theme"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Printing",
+    "Topic :: Software Development :: Libraries",
+]
+
+# The core builds a themed document from text, tables, metrics and PNG bytes.
+# Nothing here pulls in a browser.
+dependencies = [
+    "fpdf2>=2.8,<3",
+    "Pillow>=12,<13",
+]
+
+[project.optional-dependencies]
+# Plotly figure rendering: re-colours a figure into the brand palette and
+# rasterises it through Kaleido, which drives a headless Chrome. Only needed if
+# you hand reportkit `go.Figure` objects instead of PNG bytes.
+charts = [
+    "plotly>=6.8,<7",
+    "kaleido>=1.3,<2",
+]
+dev = [
+    "pytest>=8,<9",
+    "pypdfium2>=5,<6",   # rasterises rendered pages for the golden test
+]
+
+[project.urls]
+Homepage = "https://github.com/diegogomezpy/report_maker"
+
+[tool.hatch.build.targets.wheel]
+packages = ["reportkit"]
+
+# IBM Plex Sans ships with the package (SIL Open Font License 1.1 — see
+# reportkit/fonts/OFL.txt and NOTICE.md). Without a bundled Unicode font the
+# document falls back to fpdf2's built-in Helvetica, which is Latin-1 only and
+# mangles anything outside it. Shipping the font is what makes a fresh install
+# render correctly with no setup.
+[tool.hatch.build.targets.wheel.force-include]
+"reportkit/fonts" = "reportkit/fonts"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning:fpdf.*"]
