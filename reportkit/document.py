@@ -119,9 +119,40 @@ class ReportDocument(FPDF):
                  panel_color: tuple | None = None,
                  sidebar_bar_color: tuple | None = None,
                  theme: "ReportTheme | None" = None,
-                 font_dir=None, labels=None):
+                 font_dir=None, labels=None, brand=None):
+        # A Brand, if given, supplies the palette BEFORE tokens are derived.
+        # It cannot arrive afterwards: `build_tokens` runs once in this
+        # constructor, and a second derivation site is the duplicated-state bug
+        # class this package was extracted to remove.
+        if brand is not None:
+            primary_color      = brand.primary
+            accent_color       = brand.accent
+            section_rule_color = brand.section_rule
+            panel_color        = brand.panel if brand.panel else panel_color
+            sidebar_bar_color  = brand.sidebar_bar if brand.sidebar_bar else sidebar_bar_color
+            firm_name          = brand.firm_name or firm_name
+            if theme is None and brand.theme_name is not None:
+                theme = resolve_theme(brand.theme_name)
         super().__init__(orientation="P", unit="mm", format="A4")
         self._labels = labels
+        # Declared, not left to getattr: the theme layer reads these by name, so
+        # a document that never sees a Brand must still have them. Absent
+        # declarations are how half the theme became unreachable for anyone but
+        # the original host.
+        self.cover_logo_bytes = None
+        self.cover_logo_aspect = 1.0
+        self.cover_sigil_bytes = None
+        self.cover_image_bytes = None
+        self.back_image_bytes = None
+        self.filler_image_list = []
+        self.watermark = {}
+        self.cover_overlay_color = None
+        self.cover_overlay_opacity = 0.55
+        self.disclaimer_body = ""
+        for _k in ("cover_logo_x_pct", "cover_logo_y_pct", "cover_logo_size_pct",
+                   "cover_sigil_x_pct", "cover_sigil_y_pct",
+                   "cover_sigil_size_pct", "cover_sigil_opacity"):
+            setattr(self, _k, None)
         # Pluggable visual identity — the theme draws every "look" surface
         # (header/footer, section heads, dividers, cover masthead, void decor)
         # through this instance. Defaults to the CADIEM hexagon language so an
@@ -225,6 +256,55 @@ class ReportDocument(FPDF):
 
     def _safe(self, text: object) -> str:
         return _safe(text, latin1=not self._use_unicode)
+
+    def apply_brand(self, brand, *, font_dir=None) -> None:
+        """Apply everything in a `Brand` that is not the palette.
+
+        Owns three orderings a host gets wrong on its own, each of which fails
+        silently rather than loudly:
+
+        * brand faces AFTER the default family — `register_brand_fonts` no-ops
+          unless the Unicode family is already registered, so running it first
+          leaves the document in the default type with no error;
+        * the watermark config AFTER its image is decoded, since the resolver
+          folds the image into the surfaces it gates;
+        * the filler pool AFTER cover/back selection, or the cover photograph
+          reappears as a body band halfway through the report.
+
+        Writes exactly `reportkit.branding.APPLIED_ATTRS`.
+        """
+        from reportkit import branding as _b
+        from reportkit.theme import resolve_watermark
+
+        self.firm_name = brand.firm_name or self.firm_name
+        self.firm_logo_bytes = brand.logo
+        self.firm_logo_aspect = _logo_aspect(brand.logo, default=1.0)
+        self.cover_logo_bytes = brand.cover_logo
+        self.cover_logo_aspect = _logo_aspect(brand.cover_logo,
+                                              default=self.firm_logo_aspect)
+        self.cover_sigil_bytes = brand.cover_sigil
+
+        # Selection first, pool second — see the docstring.
+        self.cover_image_bytes = brand.cover_image
+        self.back_image_bytes = brand.back_image
+        self.filler_image_list = list(brand.fillers)
+
+        self.watermark = resolve_watermark(brand.raw, brand.watermark_image)
+        self.cover_overlay_color = brand.overlay_color or self.primary_color
+        self.cover_overlay_opacity = brand.overlay_opacity
+
+        self.report_title = brand.report_title or self.report_title
+        self.website = brand.website or self.website
+        self.contact = brand.contact or self.contact
+        self.footer_note = brand.footer_note or self.footer_note
+        self.disclaimer_body = brand.disclaimer_body
+
+        for key, value in brand.placement.items():
+            setattr(self, key, value)
+
+        # Brand faces LAST: they overwrite the weight map the default family set.
+        if brand.title_font or brand.body_font:
+            _rk_fonts.register_brand_fonts(self, brand.raw, brand_dir=font_dir)
 
     def t(self, key: str) -> str:
         """Resolve a chrome label in this document's language.

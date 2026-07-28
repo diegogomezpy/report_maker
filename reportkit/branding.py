@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import base64
 import warnings
+from dataclasses import dataclass, field
 
 from reportkit.images import (fetch_image_bytes, read_local_image,
                               resolve_within, to_embeddable_png)
@@ -304,3 +305,157 @@ def _decode_b64(value):
         return to_embeddable_png(base64.b64decode(payload))
     except Exception:
         return None
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Brand — a config resolved once, applied once
+# ──────────────────────────────────────────────────────────────────────────────
+# Before this existed, `KNOWN_KEYS` recognised 51 keys and the module applied
+# two. That is worse than not knowing about them: a config was accepted whole
+# and then silently honoured in part, and the ~30 attributes the theme layer
+# reads had exactly one writer anywhere — the application this was extracted
+# from. For every other consumer, watermarks, the cover sigil and cover
+# photography were unreachable.
+#
+# `Brand` is PURE DATA: no fpdf import, no document. That is what lets a host
+# resolve a config, inspect it, cache it or diff it without building a PDF —
+# and what keeps this module off the document's import graph.
+
+#: Every document attribute `apply_brand` writes. The theme layer reads brand
+#: state off the document by name, so this list and those reads must agree — the
+#: test suite asserts it, which is what stops the recognised-but-ignored gap
+#: from quietly reopening the next time a key is added.
+APPLIED_ATTRS = (
+    "firm_name", "firm_logo_bytes", "firm_logo_aspect",
+    "cover_logo_bytes", "cover_logo_aspect", "cover_sigil_bytes",
+    "cover_image_bytes", "back_image_bytes", "filler_image_list",
+    "watermark", "cover_overlay_color", "cover_overlay_opacity",
+    "report_title", "website", "contact", "footer_note", "disclaimer_body",
+    "cover_logo_x_pct", "cover_logo_y_pct", "cover_logo_size_pct",
+    "cover_sigil_x_pct", "cover_sigil_y_pct", "cover_sigil_size_pct",
+    "cover_sigil_opacity",
+)
+
+
+@dataclass(frozen=True)
+class Brand:
+    """A resolved brand: colours, imagery, copy and type, ready to apply.
+
+    `warnings` collects everything that degraded — an unparseable colour, a
+    refused logo source, an unknown key — so a host can surface them instead of
+    discovering the problem in a client's PDF. `extras` carries whatever the
+    host declared via `extra_keys`; reportkit never interprets it.
+    """
+    primary: tuple = DEFAULT_PRIMARY
+    accent: tuple = DEFAULT_ACCENT
+    secondary: tuple = DEFAULT_SECONDARY
+    section_rule: tuple = DEFAULT_ACCENT
+    panel: tuple | None = None
+    sidebar_bar: tuple | None = None
+    firm_name: str = ""
+    theme_name: object = None            # name, inline spec dict, or None
+
+    logo: bytes | None = None
+    cover_logo: bytes | None = None
+    cover_sigil: bytes | None = None
+    cover_image: bytes | None = None
+    back_image: bytes | None = None
+    fillers: tuple = ()
+
+    watermark_image: bytes | None = None
+    raw: dict = field(default_factory=dict)     # the config, for resolve_watermark
+    overlay_color: tuple | None = None
+    overlay_opacity: float = 0.55
+    placement: dict = field(default_factory=dict)
+
+    report_title: str = ""
+    website: str = ""
+    contact: str = ""
+    footer_note: str = ""
+    disclaimer_body: str = ""
+
+    title_font: str = ""
+    body_font: str = ""
+
+    extras: dict = field(default_factory=dict)
+    warnings: tuple = ()
+
+
+def _opt_float(cfg, key):
+    try:
+        return float(cfg[key])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def resolve(cfg: dict | None, *, lang: str = "en", root=None, fetch=None,
+            extra_keys=(), default_firm_name: str = "") -> Brand:
+    """A brand config → a `Brand`. Never raises; degrades and records why.
+
+    `default_firm_name` is REQUIRED of the caller rather than defaulted here.
+    It reaches the running header of every page, and a library that supplied
+    its own would silently print someone else's product name across a client's
+    document.
+
+    `root` and `fetch` gate the two sources that touch the outside world — see
+    `load_logo`. Passing neither means base64 payloads only, which is the right
+    default for a config you did not author.
+    """
+    cfg = cfg or {}
+    warn: list[str] = []
+    known = KNOWN_KEYS | set(extra_keys)
+    for key in cfg:
+        if key not in known:
+            warn.append(f"unrecognised branding key {key!r} — ignored")
+
+    primary, accent, secondary, section_rule, firm = resolve_palette(
+        cfg, default_firm_name=default_firm_name)
+
+    slots = decode_slots(cfg.get("filler_images_base64"))
+    roles = assign_images(slots,
+                          cover=_decode_b64(cfg.get("cover_image_base64")),
+                          back=_decode_b64(cfg.get("back_image_base64")))
+
+    # A legacy flat `watermark_enabled: false` drops the image so the theme's
+    # own drawn mark shows instead. Kept because old configs still say it.
+    wm_cfg = cfg.get("watermark") if isinstance(cfg.get("watermark"), dict) else {}
+    wm_b64 = wm_cfg.get("image_base64") or cfg.get("watermark_base64")
+    if cfg.get("watermark_enabled", True) is False:
+        wm_b64 = None
+
+    logo = load_logo(cfg, root=root, fetch=fetch)
+    if cfg.get("logo_url") and fetch is None and logo is None:
+        warn.append("logo_url ignored: no `fetch` supplied (network is opt-in)")
+    if cfg.get("logo_file") and root is None:
+        warn.append("logo_file ignored: no `root` supplied (path access is opt-in)")
+
+    return Brand(
+        primary=primary, accent=accent, secondary=secondary,
+        section_rule=section_rule,
+        panel=branding_color(cfg, "panel_color", None) if cfg.get("panel_color") else None,
+        sidebar_bar=(branding_color(cfg, "sidebar_bar_color", None)
+                     if cfg.get("sidebar_bar_color") else None),
+        firm_name=firm,
+        theme_name=cfg.get("report_theme"),
+        logo=logo,
+        cover_logo=_decode_b64(cfg.get("cover_logo_base64")),
+        cover_sigil=_decode_b64(cfg.get("cover_sigil_base64")),
+        cover_image=roles.cover, back_image=roles.back, fillers=tuple(roles.fillers),
+        watermark_image=_decode_b64(wm_b64), raw=dict(cfg),
+        overlay_color=(branding_color(cfg, "cover_overlay_color", None)
+                       if cfg.get("cover_overlay_color") else None),
+        overlay_opacity=(_opt_float(cfg, "cover_overlay_opacity") or 0.55),
+        placement={k: _opt_float(cfg, k) for k in (
+            "cover_logo_x_pct", "cover_logo_y_pct", "cover_logo_size_pct",
+            "cover_sigil_x_pct", "cover_sigil_y_pct", "cover_sigil_size_pct",
+            "cover_sigil_opacity")},
+        report_title=brand_text(cfg.get("report_title"), lang) or "",
+        website=str(cfg.get("website") or ""),
+        contact=str(cfg.get("contact") or ""),
+        footer_note=brand_text(cfg.get("footer_note"), lang) or "",
+        disclaimer_body=brand_text(cfg.get("disclaimer_body"), lang) or "",
+        title_font=str(cfg.get("title_font") or ""),
+        body_font=str(cfg.get("body_font") or ""),
+        extras={k: cfg[k] for k in extra_keys if k in cfg},
+        warnings=tuple(warn),
+    )
