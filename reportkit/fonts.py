@@ -64,12 +64,12 @@ def register_default_family(pdf, font_dir=None) -> bool:
     if not all(p.exists() for p in _required):
         return False
     try:
-        pdf.add_font("IBMPlexSans",      "",   str(files["Regular"]),    uni=True)
-        pdf.add_font("IBMPlexSans",      "B",  str(files["Bold"]),       uni=True)
-        pdf.add_font("IBMPlexSans",      "I",  str(files["Italic"]),     uni=True)
-        pdf.add_font("IBMPlexSans",      "BI", str(files["BoldItalic"]), uni=True)
-        pdf.add_font("IBMPlexSansSB",    "",   str(files["SemiBold"]),   uni=True)
-        pdf.add_font("IBMPlexSansLight", "",   str(files["Light"]),      uni=True)
+        pdf.add_font(FAMILY,          "",   str(files["Regular"]))
+        pdf.add_font(FAMILY,          "B",  str(files["Bold"]))
+        pdf.add_font(FAMILY,          "I",  str(files["Italic"]))
+        pdf.add_font(FAMILY,          "BI", str(files["BoldItalic"]))
+        pdf.add_font(FAMILY_SEMIBOLD, "",   str(files["SemiBold"]))
+        pdf.add_font(FAMILY_LIGHT,    "",   str(files["Light"]))
         return True
     except Exception as exc:
         print(f"[reportkit.fonts] IBM Plex Sans registration failed: {exc}")
@@ -131,7 +131,7 @@ def register_brand_fonts(pdf, branding: dict | None, brand_dir=None) -> None:
                 path = str(cand) if cand.exists() else None
             if path:
                 try:
-                    pdf.add_font(fam, code, path, uni=True)
+                    pdf.add_font(fam, code, path)
                     loaded.add(code)
                 except Exception as e:
                     print(f"[reportkit.fonts] {font_name} {suffix} failed: {e}")

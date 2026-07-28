@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "reportkit"
-version = "0.2.1"
+version = "0.2.2"
 description = "A reusable toolkit for themed, brandable PDF reports."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -23,7 +23,7 @@ classifiers = [
 # Nothing here pulls in a browser.
 dependencies = [
     "fpdf2>=2.8,<3",
-    "Pillow>=12,<13",
+    "Pillow>=10,<14",
 ]
 
 [project.optional-dependencies]
@@ -45,6 +45,9 @@ Homepage = "https://github.com/diegogomezpy/report_maker"
 [tool.hatch.build.targets.wheel]
 packages = ["reportkit"]
 
+# py.typed makes the annotations visible to consumers under PEP 561; without it
+# every type hint in this package is invisible to a user's type checker.
+
 # IBM Plex Sans ships with the package (SIL Open Font License 1.1 — see
 # reportkit/fonts/OFL.txt and NOTICE.md). Without a bundled Unicode font the
 # document falls back to fpdf2's built-in Helvetica, which is Latin-1 only and
@@ -57,7 +60,10 @@ packages = ["reportkit"]
 # far as green CI — only a real `pip install .` catches it.
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-filterwarnings = ["ignore::DeprecationWarning:fpdf.*"]
+# Deliberately NOT ignoring fpdf DeprecationWarnings: they are the early
+# warning for an fpdf2 change that would silently downgrade every document
+# to Latin-1 Helvetica. Silencing them hid exactly that signal.
+filterwarnings = ["error::DeprecationWarning:fpdf.*"]
 # `-m "not charts"` in the core CI job deselects everything that needs Plotly or
 # Kaleido. Registering the marker keeps that from silently matching nothing.
 markers = [

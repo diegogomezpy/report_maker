@@ -8,7 +8,7 @@ It grew out of a structured-note analytics app whose report generator was worth
 more than the app it lived in. This is that generator with the finance taken out.
 
 ```bash
-pip install "reportkit @ git+https://github.com/diegogomezpy/report_maker@v0.1.0"
+pip install "reportkit @ git+https://github.com/diegogomezpy/report_maker@v0.2.2"
 ```
 
 ## Hello, report
@@ -85,14 +85,29 @@ failing somewhere inside the PDF engine.
 - **Light core.** `fpdf2` and `Pillow`. Charts are an extra
   (`pip install "reportkit[charts]"`) because Kaleido drives a headless Chrome
   and most projects would rather hand over a PNG.
-- **Pixel-stable.** A golden test renders the full document under several brand
-  fixtures and diffs per-page SHA-256. A drawing change that moves pixels it
-  didn't mean to fails the build.
+- **Tested where it counts.** Colour parsing, the image security guards (path
+  containment, URL schemes, decompression bombs), font registration and the
+  spec validator all have direct tests. A per-page pixel golden for the document
+  itself is **not here yet** — it currently lives in the application this was
+  extracted from, which means `reportkit`'s own pagination is guarded downstream
+  rather than in this repo. That is the top item on the roadmap.
 
 ## Status
 
-`0.1.0` — extracted from a working production report generator. The API is
-young and will move before `1.0`.
+`0.2.2` — extracted from a working production report generator, which still
+uses it. The API is young and will move before `1.0`.
+
+Known gaps, so you can judge fit:
+
+- **A brand config is only partly applied.** `KNOWN_KEYS` recognises 51 keys but
+  `resolve_palette`/`load_logo` apply the palette and the logo. Cover art, the
+  sigil, watermarks, the overlay and copy overrides are recognised and then
+  ignored — the host application still wires those by hand. `branding.apply()`
+  is the next thing being built.
+- **No cover builder.** The theme layer can paint one; nothing in the package
+  drives it yet.
+- **No outline.** `secondary_head` takes a chapter number but nothing here
+  produces one.
 
 ## Licence
 

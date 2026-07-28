@@ -153,7 +153,12 @@ def load_logo(branding: dict | None, *, root=None, fetch=None) -> bytes | None:
          directory is legitimate, and an unconstrained path here is an
          arbitrary-file-read that ends up embedded in a downloadable PDF.
       2. branding['logo_base64'] — a base64 string or data: URI
-      3. branding['logo_url']    — remote URL (last-resort network fetch)
+      3. branding['logo_url']    — a remote URL, fetched ONLY if the host passes
+         a `fetch` callable. Same reasoning as `root`: left on by default this
+         is an SSRF read with an exfil channel — a config you did not write
+         names a URL, reportkit requests it, and the response is embedded in a
+         PDF the requester downloads. Opt in with
+         `fetch=reportkit.images.fetch_image_bytes`.
 
     Returns image bytes or None. Never raises — a failure simply omits the logo.
     """
@@ -180,5 +185,10 @@ def load_logo(branding: dict | None, *, root=None, fetch=None) -> bytes | None:
     # 3. Remote URL
     url = branding.get("logo_url")
     if url:
-        return to_embeddable_png((fetch or fetch_image_bytes)(url))
+        if fetch is None:
+            print("[reportkit.branding] logo_url ignored: no `fetch` supplied. "
+                  "Pass fetch=reportkit.images.fetch_image_bytes to allow the "
+                  "network.")
+            return None
+        return to_embeddable_png(fetch(url))
     return None
