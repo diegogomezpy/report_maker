@@ -192,3 +192,115 @@ def load_logo(branding: dict | None, *, root=None, fetch=None) -> bytes | None:
             return None
         return to_embeddable_png(fetch(url))
     return None
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# The positional image-slot algorithm
+# ──────────────────────────────────────────────────────────────────────────────
+# A brand supplies a POOL of report photos. Its slots are positional —
+# 0 = cover, 1 = back page, the rest = void-filler bands — and a slot can be a
+# deliberate BLANK meaning "no photo here, themed background instead".
+#
+# The blank is the whole reason this is not a list comprehension. A picker's
+# "No image" choice arrives as an empty string, and it has to HOLD its position:
+# if a failed or blank entry simply vanished, the next photo would shift up into
+# the cover role and a brand that explicitly chose no cover photo would get one.
+#
+# Pure functions over bytes, deliberately: no PDF, no fpdf, no document. That is
+# what makes the branch table below testable at all.
+
+
+class ImageRoles:
+    """Which photo plays which part. `cover`/`back` may be None (deliberately)."""
+
+    __slots__ = ("cover", "back", "fillers")
+
+    def __init__(self, cover, back, fillers):
+        self.cover, self.back, self.fillers = cover, back, fillers
+
+    def __repr__(self):                       # helpful in a failing assertion
+        def n(b):
+            return None if b is None else f"<{len(b)}b>"
+        return (f"ImageRoles(cover={n(self.cover)}, back={n(self.back)}, "
+                f"fillers=[{', '.join(n(f) for f in self.fillers)}])")
+
+
+def decode_slots(raw, decode=None) -> list:
+    """Pool config → positional slots, blanks preserved as None.
+
+    `decode` turns one entry into bytes-or-None (base64, a data URI, whatever
+    the host stores); it defaults to a base64/data-URI reader. A bare string is
+    tolerated as a one-entry pool, because configs written by hand do that.
+    Real images are deduped BY CONTENT — the same photo picked twice occupies
+    one slot, but two distinct blanks each keep theirs.
+    """
+    if not raw:
+        return []
+    if isinstance(raw, (str, bytes)):
+        raw = [raw]
+    decode = decode or _decode_b64
+    slots, seen = [], set()
+    for item in raw:
+        img = decode(item)
+        if img is None:
+            slots.append(None)                # blank slot — keeps its position
+        elif img not in seen:
+            seen.add(img)
+            slots.append(img)
+        # else: the same image again — drop the duplicate, do not add a slot
+    return slots
+
+
+def assign_images(slots, *, cover=None, back=None) -> ImageRoles:
+    """Positional slots (+ explicit overrides) → cover / back / filler pool.
+
+    Four rules, each of which exists because of a real config:
+
+    * The cover is the explicit image, else slot 0. Note the explicit one is
+      tested for TRUTHINESS, so an explicit-but-blank cover falls through to
+      slot 0 — the sentinel is honoured for slots but not for the explicit key.
+      That asymmetry is preserved deliberately; it is current behaviour.
+    * The back is the explicit image, else slot 1 — which may be a deliberate
+      blank, and is honoured as one. Only when there is NO second slot at all
+      does it fall back to the cover, so a one-photo brand still gets a back
+      page without overriding an explicit "no image".
+    * Fillers are the real images not already spent on cover or back, so the
+      cover photo never reappears mid-report.
+    * If that leaves nothing, fall back to the cover/back photos — a two-photo
+      brand still gets a filler band rather than a bare void.
+    """
+    cover_img = cover if cover else (slots[0] if slots else None)
+
+    if back:
+        back_img = back
+    elif len(slots) > 1:
+        back_img = slots[1]                   # may be None → deliberate blank
+    else:
+        back_img = cover_img
+
+    used = {b for b in (cover_img, back_img) if b}
+    fillers = [img for img in slots if img and img not in used]
+    if not fillers:
+        fillers, seen = [], set()
+        for img in (cover_img, back_img):
+            if img and img not in seen:
+                seen.add(img)
+                fillers.append(img)
+    return ImageRoles(cover_img, back_img, fillers)
+
+
+def _decode_b64(value):
+    """Base64 / data-URI string → PNG bytes, or None for blank or undecodable.
+
+    None rather than raising: a blank entry is a legitimate choice, and a
+    corrupt one should cost a photo, not the report.
+    """
+    if not value:
+        return None
+    try:
+        if isinstance(value, bytes):
+            return to_embeddable_png(value)
+        payload = value.split(",", 1)[1] if str(value).strip().startswith("data:") else value
+        return to_embeddable_png(base64.b64decode(payload))
+    except Exception:
+        return None

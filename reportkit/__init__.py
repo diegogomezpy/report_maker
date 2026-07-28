@@ -62,6 +62,7 @@ from reportkit.document import ReportDocument, CHROME_LABELS  # noqa: F401
 from reportkit.text import _safe as sanitise  # noqa: F401
 from reportkit.spec import render as render_spec, SpecError  # noqa: F401
 from reportkit.branding import (  # noqa: F401
+    ImageRoles, assign_images, decode_slots,
     load_logo, resolve_palette, validate_branding,
 )
 
@@ -83,6 +84,9 @@ __all__ = [
     "CHROME_LABELS",
     "sanitise",
     "render_spec",
+    "assign_images",
+    "decode_slots",
+    "ImageRoles",
     "load_logo",
     "resolve_palette",
     "validate_branding",
