@@ -8,7 +8,7 @@ It grew out of a structured-note analytics app whose report generator was worth
 more than the app it lived in. This is that generator with the finance taken out.
 
 ```bash
-pip install "reportkit @ git+https://github.com/diegogomezpy/report_maker@v0.5.0"
+pip install "reportkit @ git+https://github.com/diegogomezpy/report_maker@v0.6.0"
 ```
 
 ## Hello, report
@@ -77,6 +77,7 @@ failing somewhere inside the PDF engine.
 | `reportkit.images` | Fetch, sanitise and embed images safely — including refusing decompression bombs and non-HTTP URLs. |
 | `reportkit.spec` | The declarative layer: a document spec (dict/JSON) → a rendered PDF. |
 | `reportkit.charts` | *(extra)* Re-colour a Plotly figure into the brand palette and rasterise it. |
+| `reportkit.testing` | Deterministic inputs for rendering under test: seeded stand-in imagery, a figure stub that honours the requested pixel size, and `sample_document()` — a report touching every block, including a table long enough to split. |
 
 ## Design
 
@@ -89,22 +90,20 @@ failing somewhere inside the PDF engine.
   and most projects would rather hand over a PNG.
 - **Tested where it counts.** Colour parsing, the image security guards (path
   containment, URL schemes, decompression bombs), font registration and the
-  spec validator all have direct tests. A per-page pixel golden for the document
-  itself is **not here yet** — it currently lives in the application this was
-  extracted from, which means `reportkit`'s own pagination is guarded downstream
-  rather than in this repo. That is the top item on the roadmap.
+  spec validator have direct tests. On top of those, `reportkit.testing` builds
+  a sample document that exercises every block, and two suites guard it: a
+  per-page pixel golden, and a keep-together pagination sweep over table size x
+  starting height. Both were checked by MUTATION — a deliberately broken
+  `_table_room` must turn them red, and the first draft of the pagination suite
+  did not, so it was guarding nothing.
 
 ## Status
 
-`0.5.0` — extracted from a working production report generator, which still
+`0.6.0` — extracted from a working production report generator, which still
 uses it. The API is young and will move before `1.0`.
 
 Known gaps, so you can judge fit:
 
-- **No golden of its own.** The pixel and pagination guards for this code live
-  in the application it was extracted from, so `reportkit`'s own keep-together
-  rules are proven downstream rather than here. Being fixed next; until then,
-  treat the pagination constants as load-bearing and change them carefully.
 - **No PDF bookmarks.** `start_section` is a pagination helper and shadows
   fpdf2's outline API of the same name, so the document tree a reader shows in
   its sidebar is not built. Renaming it is a breaking change held for `1.0`.
@@ -113,7 +112,8 @@ Known gaps, so you can judge fit:
 
 Closed since `0.2.x`, in case you read an older copy of this file: a brand
 config is now applied whole (`0.3.0`), covers and back pages have a builder
-(`0.4.0`), and chapter numbering plus the contents list are in (`0.5.0`).
+(`0.4.0`), chapter numbering plus the contents list are in (`0.5.0`), and
+the package now has its own pixel and pagination guards (`0.6.0`).
 
 ## Licence
 

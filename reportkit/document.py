@@ -526,16 +526,16 @@ class ReportDocument(FPDF):
             if rounded_card:
                 self.set_fill_color(*self.ink)
                 try:
-                    self.rect(self.l_margin, self.get_y(), tbl_w, 9, style="F",
+                    self.rect(self.l_margin, self.get_y(), tbl_w, _TBL_HEAD_H, style="F",
                               round_corners=("TOP_LEFT", "TOP_RIGHT"), corner_radius=_CR)
                 except TypeError:
-                    self.rect(self.l_margin, self.get_y(), tbl_w, 9, style="F")
+                    self.rect(self.l_margin, self.get_y(), tbl_w, _TBL_HEAD_H, style="F")
             else:
                 self.set_fill_color(*self.ink)
             self._sf(7.5, "body_bold")
             for idx, (h, w, a) in enumerate(zip(headers, col_widths, aligns)):
                 self.set_text_color(*(self.lime if idx == 0 else _WHITE))
-                self.cell(w, 9, f" {h} ", border=0, fill=not rounded_card, align=a)
+                self.cell(w, _TBL_HEAD_H, f" {h} ", border=0, fill=not rounded_card, align=a)
             self.ln()
             self.set_text_color(*_TEXT)
             self._sf(8, "regular")
@@ -588,20 +588,20 @@ class ReportDocument(FPDF):
                     self.set_fill_color(*_ROW_ALT)
                     if i == _last:
                         try:
-                            self.rect(self.l_margin, self.get_y(), tbl_w, 8, style="F",
+                            self.rect(self.l_margin, self.get_y(), tbl_w, _TBL_ROW_H, style="F",
                                       round_corners=("BOTTOM_LEFT", "BOTTOM_RIGHT"),
                                       corner_radius=_CR)
                         except TypeError:
-                            self.rect(self.l_margin, self.get_y(), tbl_w, 8, style="F")
+                            self.rect(self.l_margin, self.get_y(), tbl_w, _TBL_ROW_H, style="F")
                     else:
-                        self.rect(self.l_margin, self.get_y(), tbl_w, 8, style="F")
+                        self.rect(self.l_margin, self.get_y(), tbl_w, _TBL_ROW_H, style="F")
                 for cell_val, w, a in zip(row, col_widths, aligns):
-                    self.cell(w, 8, f" {cell_val} ", border=0, fill=False, align=a)
+                    self.cell(w, _TBL_ROW_H, f" {cell_val} ", border=0, fill=False, align=a)
                 self.ln()
             else:
                 self.set_fill_color(*(_ROW_ALT if is_alt else _WHITE))
                 for cell_val, w, a in zip(row, col_widths, aligns):
-                    self.cell(w, 8, f" {cell_val} ", border=0, fill=True, align=a)
+                    self.cell(w, _TBL_ROW_H, f" {cell_val} ", border=0, fill=True, align=a)
                 self.ln()
 
     def logo_row_table(self, headers: list[str], rows: list[list[str]],
