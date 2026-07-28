@@ -30,7 +30,14 @@ bytes and never imports it.
 """
 from __future__ import annotations
 
-__version__ = "0.1.0"
+# Single-sourced from the installed distribution metadata, which pyproject.toml
+# is the authority for. Hard-coding it here too gave two versions that drift:
+# 0.2.0 shipped reporting 0.1.0 because only one of the pair got bumped.
+try:                                    # installed (wheel / editable)
+    from importlib.metadata import version as _dist_version
+    __version__ = _dist_version("reportkit")
+except Exception:                       # running from a source checkout
+    __version__ = "0.0.0+source"
 
 # Keep the top-level surface small and stable — import the submodules for the
 # rest. Everything re-exported here is something a host application is expected
