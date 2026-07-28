@@ -38,3 +38,30 @@ jobs:
           python-version: "3.12"
       - run: pip install -e ".[dev,charts]"
       - run: pytest -q
+
+  wheel:
+    # An EDITABLE install (-e) does not exercise the wheel builder, so a
+    # packaging error can sit behind green CI indefinitely. This installs the
+    # built distribution into a clean venv and runs the example end to end —
+    # the actual "drop it into a new project" claim.
+    name: real wheel install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install .
+      - name: The README's hello-world must run from the installed package
+        run: |
+          cd "$(mktemp -d)"
+          python "$GITHUB_WORKSPACE/examples/hello.py"
+          test -s hello.pdf
+      - name: Bundled fonts must survive packaging
+        run: |
+          python - <<'PY'
+          import pathlib, reportkit
+          ttfs = list((pathlib.Path(reportkit.__file__).parent / "fonts").glob("*.ttf"))
+          assert len(ttfs) == 6, f"expected 6 bundled TTFs, found {len(ttfs)}"
+          print("ok:", len(ttfs), "fonts")
+          PY

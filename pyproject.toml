@@ -50,9 +50,11 @@ packages = ["reportkit"]
 # document falls back to fpdf2's built-in Helvetica, which is Latin-1 only and
 # mangles anything outside it. Shipping the font is what makes a fresh install
 # render correctly with no setup.
-[tool.hatch.build.targets.wheel.force-include]
-"reportkit/fonts" = "reportkit/fonts"
-
+#
+# No force-include: the TTFs are already inside the `reportkit` package
+# directory, and force-including them there again is a duplicate-path error at
+# wheel-build time. An EDITABLE install never hits it, which is how this got as
+# far as green CI — only a real `pip install .` catches it.
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 filterwarnings = ["ignore::DeprecationWarning:fpdf.*"]

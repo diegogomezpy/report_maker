@@ -13,10 +13,14 @@ imperatively (or hand over a document spec) and feed in your own content; the
     reportkit.color    CSS colour parsing and brand palette remapping.
     reportkit.charts   [charts extra] Plotly figure -> brand-coloured PNG bytes.
 
-Extraction in progress — `reportkit.document` (the themed builder and its
-blocks), `reportkit.branding`, `reportkit.fonts`, `reportkit.spec` and the
-optional `reportkit.charts` are being lifted out of the application this grew
-inside, one slice at a time. Each slice is guarded by a byte-level fingerprint
+    reportkit.document  `ReportDocument` — the themed builder: covers, section
+                        heads, tables, metric bands, figures, callouts, and the
+                        pagination that keeps a heading with its content.
+    reportkit.fonts     font registration; ships IBM Plex Sans under the OFL.
+    reportkit.text      string sanitisation for the PDF text layer.
+
+Extraction in progress — `reportkit.branding` and `reportkit.spec` are still
+being lifted out of the application this grew inside, one slice at a time. Each slice is guarded by a byte-level fingerprint
 of that application's rendered reports, so a move that changes output fails.
 
 Only `fpdf2` and `Pillow` are required. Plotly figure rendering lives behind the
@@ -46,6 +50,8 @@ from reportkit.theme import (  # noqa: F401
 )
 from reportkit.images import cover_crop, configure_limits  # noqa: F401
 from reportkit.color import parse_rgb, remap_color, rgb_to_hue  # noqa: F401
+from reportkit.document import ReportDocument, CHROME_LABELS  # noqa: F401
+from reportkit.text import _safe as sanitise  # noqa: F401
 
 __all__ = [
     "__version__",
@@ -61,6 +67,9 @@ __all__ = [
     "DEFAULT_THEME",
     "HEXAGON_SPEC",
     "MERCATOR_SPEC",
+    "ReportDocument",
+    "CHROME_LABELS",
+    "sanitise",
     "cover_crop",
     "configure_limits",
     "parse_rgb",
