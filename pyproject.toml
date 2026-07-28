@@ -56,3 +56,8 @@ packages = ["reportkit"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 filterwarnings = ["ignore::DeprecationWarning:fpdf.*"]
+# `-m "not charts"` in the core CI job deselects everything that needs Plotly or
+# Kaleido. Registering the marker keeps that from silently matching nothing.
+markers = [
+    "charts: requires the optional [charts] extra (Plotly + Kaleido + Chrome)",
+]
