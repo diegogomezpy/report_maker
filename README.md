@@ -14,23 +14,27 @@ pip install "reportkit @ git+https://github.com/diegogomezpy/report_maker@v0.1.0
 ## Hello, report
 
 ```python
-from reportkit import ReportDocument, Brand
+from reportkit import ReportDocument, resolve_theme
 
-doc = ReportDocument(brand=Brand(name="Acme Capital", primary="#15694E"))
-doc.cover("Q3 Portfolio Review", subtitle="Prepared for the Investment Committee")
-doc.section("Performance")
-doc.metrics([("Return", "+8.4%"), ("Volatility", "11.2%"), ("Sharpe", "0.74")])
-doc.table(["Asset", "Weight", "Return"],
-          [["Equities", "62%", "+11.1%"], ["Credit", "28%", "+3.9%"]])
-doc.figure(png_bytes, caption="Cumulative return", source="Internal, monthly")
-open("review.pdf", "wb").write(doc.render())
+doc = ReportDocument(firm_name="Acme Capital",
+                     primary_color=(11, 59, 46),
+                     accent_color=(32, 148, 138),
+                     section_rule_color=(163, 200, 63),
+                     theme=resolve_theme("mercator"))     # or "hexagon"
+doc.add_page()
+doc.section_title("Performance")
+doc.metric_band([("Net return", "8.4%"), ("Volatility", "11.2%"), ("Sharpe", "0.74")])
+doc.subsection("Holdings")
+doc.data_table(["Asset", "Weight", "Return"],
+               [["Equities", "62%", "+11.1%"], ["Credit", "28%", "+3.9%"]])
+doc.figure(png_bytes, "Cumulative return", "Acme, monthly")
+doc.callout("Note", "Past performance is not indicative of future results.")
+
+open("report.pdf", "wb").write(bytes(doc.output()))
 ```
 
-Same content, different identity — change the brand, not the code:
-
-```python
-doc = ReportDocument(brand=Brand.from_dict(json.load(open("brand.json"))))
-```
+Runnable as `examples/hello.py`. Same content, different identity — change the
+three colours and the theme name, not the code.
 
 ## Or describe the document as data
 
@@ -38,20 +42,27 @@ doc = ReportDocument(brand=Brand.from_dict(json.load(open("brand.json"))))
 from reportkit import render_spec
 
 pdf = render_spec({
-    "brand": {"name": "Acme Capital", "primary": "#15694E", "theme": "mercator"},
-    "cover": {"title": "Q3 Portfolio Review"},
+    "brand": {"firm_name": "Acme Capital", "primary": "#0B3B2E", "theme": "mercator"},
     "sections": [
         {"title": "Performance", "blocks": [
-            {"metrics": [["Return", "+8.4%"], ["Sharpe", "0.74"]]},
+            {"metrics": [["Net return", "8.4%"], ["Sharpe", "0.74"]]},
             {"table": {"headers": ["Asset", "Weight"],
                        "rows": [["Equities", "62%"]]}},
+            {"callout": {"title": "Note", "text": "Not investment advice."}},
         ]},
     ],
 })
 ```
 
-Useful when the report's shape comes from config, a UI, or another service
-rather than from Python you control.
+Useful when a report's shape comes from config, a UI, or another service rather
+than from Python you control. Blocks: `text`, `bullets`, `heading`, `metrics`,
+`table`, `figure`, `callout`, `page_break` — plus your own, passed as
+`render_spec(spec, blocks={"gauge": draw_gauge})`, because there is always one
+bespoke drawing and it should not cost you the other 95% of the document.
+
+A spec is data, so it is treated as untrusted: a malformed one raises
+`SpecError` naming the path (`sections[1].blocks[0].table.rows`) instead of
+failing somewhere inside the PDF engine.
 
 ## What you get
 
