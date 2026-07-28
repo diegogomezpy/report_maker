@@ -20,6 +20,8 @@ imperatively (or hand over a document spec) and feed in your own content; the
     reportkit.text      string sanitisation for the PDF text layer.
     reportkit.spec      describe a document as data; `render_spec(dict)`.
     reportkit.branding  resolve a brand config — palette, logo, copy, fonts.
+    reportkit.cover     full-bleed pages: the paint / photo / overlay order a
+                        cover has to get right, as a context manager.
 
 Extracted from a working application, every slice guarded by a byte-level fingerprint of that application's
 rendered reports, so a move that changes output fails.
@@ -57,6 +59,7 @@ from reportkit.theme import (  # noqa: F401
     MERCATOR_SPEC,
 )
 from reportkit.images import cover_crop, configure_limits  # noqa: F401
+from reportkit.cover import full_bleed, MINT  # noqa: F401
 from reportkit.color import parse_rgb, remap_color, rgb_to_hue  # noqa: F401
 from reportkit.document import ReportDocument, CHROME_LABELS  # noqa: F401
 from reportkit.text import _safe as sanitise  # noqa: F401
@@ -96,6 +99,8 @@ __all__ = [
     "SpecError",
     "cover_crop",
     "configure_limits",
+    "full_bleed",
+    "MINT",
     "parse_rgb",
     "remap_color",
     "rgb_to_hue",

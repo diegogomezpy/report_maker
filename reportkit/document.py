@@ -32,6 +32,7 @@ import math
 
 from fpdf import FPDF
 
+import reportkit.cover as _rk_cover
 import reportkit.fonts as _rk_fonts
 from reportkit.images import (cover_crop, logo_aspect as _logo_aspect,
                               to_embeddable_png)
@@ -409,6 +410,35 @@ class ReportDocument(FPDF):
         if self.page_no() > 0 and self.page_no() not in self._cover_pages:
             self._decorate_void(variant=self.page_no() % 3)
         return super().add_page(*args, **kwargs)
+
+    # ------------------------------------------------------------------
+    # Full-bleed pages — covers and back pages
+    # ------------------------------------------------------------------
+    # Thin delegations to reportkit.cover, which owns the painting order. See
+    # its module docstring: every step of that order fails silently when a
+    # caller improvises, so the sequence is a context manager rather than a
+    # recipe in a docstring.
+    def full_bleed_page(self, image: bytes | None = None):
+        """Context manager: a painted, chrome-free page. Yields `(w, h)`."""
+        return _rk_cover.full_bleed(self, image)
+
+    def draw_logo_fit(self, logo_b, x: float, y: float, max_h: float,
+                      max_w: float, *, cover: bool = False) -> None:
+        return _rk_cover.draw_logo_fit(self, logo_b, x, y, max_h, max_w,
+                                       cover=cover)
+
+    def cover_logo(self) -> None:
+        """The brand's cover wordmark, in the brand's chosen place."""
+        return _rk_cover.draw_cover_logo(self, self.w, self.h)
+
+    def cover_sigil(self) -> None:
+        """The brand's emblem, bleeding off an edge as a faint motif."""
+        return _rk_cover.draw_sigil(self, self.w, self.h)
+
+    def cover_left_photo(self, x0: float, top: float, w: float, bottom: float,
+                         img: bytes) -> bool:
+        """A banded brand photo down a tall column. False ⇒ fall back."""
+        return _rk_cover.left_photo(self, x0, top, w, bottom, img)
 
     def section_divider(self, number: str, kicker: str, heading: str):
         return self.theme.section_divider(self, number, kicker, heading)

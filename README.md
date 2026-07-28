@@ -71,6 +71,7 @@ failing somewhere inside the PDF engine.
 | `reportkit.document` | `ReportDocument` — the themed builder. Covers, section heads, tables, metric bands, figures, callouts, body copy, and the pagination rules that keep a heading with its content. |
 | `reportkit.theme` | The visual identity: `ReportTheme`, the declarative `SpecTheme`, palette-derived tokens, shape/gradient primitives, and the theme registry. Two themes ship: `mercator` (clean, editorial) and `hexagon` (chamfered, dark mastheads). |
 | `reportkit.branding` | Resolving a brand: palette, logos, cover imagery, fonts, copy overrides. |
+| `reportkit.cover` | Full-bleed pages. `full_bleed()` is a context manager over the open / paint / photo / tint order a cover has to get right — every step of which fails silently when it is done wrong. |
 | `reportkit.fonts` | Font registration. Ships IBM Plex Sans; points at your licensed brand faces when you have them. |
 | `reportkit.images` | Fetch, sanitise and embed images safely — including refusing decompression bombs and non-HTTP URLs. |
 | `reportkit.spec` | The declarative layer: a document spec (dict/JSON) → a rendered PDF. |
@@ -94,7 +95,7 @@ failing somewhere inside the PDF engine.
 
 ## Status
 
-`0.2.2` — extracted from a working production report generator, which still
+`0.4.0` — extracted from a working production report generator, which still
 uses it. The API is young and will move before `1.0`.
 
 Known gaps, so you can judge fit:
