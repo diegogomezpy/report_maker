@@ -19,10 +19,9 @@ imperatively (or hand over a document spec) and feed in your own content; the
     reportkit.fonts     font registration; ships IBM Plex Sans under the OFL.
     reportkit.text      string sanitisation for the PDF text layer.
     reportkit.spec      describe a document as data; `render_spec(dict)`.
+    reportkit.branding  resolve a brand config — palette, logo, copy, fonts.
 
-Extraction in progress — `reportkit.branding` (resolving a whole brand config
-in one call) is the last piece still inside the application this grew from.
-Every slice is guarded by a byte-level fingerprint of that application's
+Extracted from a working application, every slice guarded by a byte-level fingerprint of that application's
 rendered reports, so a move that changes output fails.
 
 Only `fpdf2` and `Pillow` are required. Plotly figure rendering lives behind the
@@ -55,6 +54,9 @@ from reportkit.color import parse_rgb, remap_color, rgb_to_hue  # noqa: F401
 from reportkit.document import ReportDocument, CHROME_LABELS  # noqa: F401
 from reportkit.text import _safe as sanitise  # noqa: F401
 from reportkit.spec import render as render_spec, SpecError  # noqa: F401
+from reportkit.branding import (  # noqa: F401
+    load_logo, resolve_palette, validate_branding,
+)
 
 __all__ = [
     "__version__",
@@ -74,6 +76,9 @@ __all__ = [
     "CHROME_LABELS",
     "sanitise",
     "render_spec",
+    "load_logo",
+    "resolve_palette",
+    "validate_branding",
     "SpecError",
     "cover_crop",
     "configure_limits",
