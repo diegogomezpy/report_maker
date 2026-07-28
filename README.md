@@ -8,7 +8,7 @@ It grew out of a structured-note analytics app whose report generator was worth
 more than the app it lived in. This is that generator with the finance taken out.
 
 ```bash
-pip install "reportkit @ git+https://github.com/diegogomezpy/report_maker@v0.2.2"
+pip install "reportkit @ git+https://github.com/diegogomezpy/report_maker@v0.5.0"
 ```
 
 ## Hello, report
@@ -71,6 +71,7 @@ failing somewhere inside the PDF engine.
 | `reportkit.document` | `ReportDocument` — the themed builder. Covers, section heads, tables, metric bands, figures, callouts, body copy, and the pagination rules that keep a heading with its content. |
 | `reportkit.theme` | The visual identity: `ReportTheme`, the declarative `SpecTheme`, palette-derived tokens, shape/gradient primitives, and the theme registry. Two themes ship: `mercator` (clean, editorial) and `hexagon` (chamfered, dark mastheads). |
 | `reportkit.branding` | Resolving a brand: palette, logos, cover imagery, fonts, copy overrides. |
+| `reportkit.outline` | Chapter numbering, the contents list, and headings that draw only if something follows them. One place decides a chapter's number; the body and the contents page both read it. |
 | `reportkit.cover` | Full-bleed pages. `full_bleed()` is a context manager over the open / paint / photo / tint order a cover has to get right — every step of which fails silently when it is done wrong. |
 | `reportkit.fonts` | Font registration. Ships IBM Plex Sans; points at your licensed brand faces when you have them. |
 | `reportkit.images` | Fetch, sanitise and embed images safely — including refusing decompression bombs and non-HTTP URLs. |
@@ -95,20 +96,24 @@ failing somewhere inside the PDF engine.
 
 ## Status
 
-`0.4.0` — extracted from a working production report generator, which still
+`0.5.0` — extracted from a working production report generator, which still
 uses it. The API is young and will move before `1.0`.
 
 Known gaps, so you can judge fit:
 
-- **A brand config is only partly applied.** `KNOWN_KEYS` recognises 51 keys but
-  `resolve_palette`/`load_logo` apply the palette and the logo. Cover art, the
-  sigil, watermarks, the overlay and copy overrides are recognised and then
-  ignored — the host application still wires those by hand. `branding.apply()`
-  is the next thing being built.
-- **No cover builder.** The theme layer can paint one; nothing in the package
-  drives it yet.
-- **No outline.** `secondary_head` takes a chapter number but nothing here
-  produces one.
+- **No golden of its own.** The pixel and pagination guards for this code live
+  in the application it was extracted from, so `reportkit`'s own keep-together
+  rules are proven downstream rather than here. Being fixed next; until then,
+  treat the pagination constants as load-bearing and change them carefully.
+- **No PDF bookmarks.** `start_section` is a pagination helper and shadows
+  fpdf2's outline API of the same name, so the document tree a reader shows in
+  its sidebar is not built. Renaming it is a breaking change held for `1.0`.
+- **Diagnostics go to `print`.** There is no logger; a host that wants brand
+  warnings in its log has to capture stdout.
+
+Closed since `0.2.x`, in case you read an older copy of this file: a brand
+config is now applied whole (`0.3.0`), covers and back pages have a builder
+(`0.4.0`), and chapter numbering plus the contents list are in (`0.5.0`).
 
 ## Licence
 
