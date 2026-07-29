@@ -35,7 +35,7 @@ from fpdf import FPDF
 import reportkit.cover as _rk_cover
 import reportkit.fonts as _rk_fonts
 from reportkit.images import (logo_aspect as _logo_aspect)
-from reportkit.text import _safe
+from reportkit.text import sanitise
 from reportkit.color import (DEFAULT_ACCENT as _DEFAULT_ACCENT,
                              DEFAULT_PRIMARY as _DEFAULT_PRIMARY)
 from reportkit.theme import (
@@ -75,7 +75,7 @@ TBL_HEAD_H = 9.0
 TBL_PAD    = 6.0
 PAGE_CAP   = 246.0   # h(297) - footer(30) - running header(21): a fresh page's room
 HEAD_ROOM  = 10.0    # vertical space a sub-heading itself consumes (ln+cell+ln)
-#: The room `start_section` reserves by default: a title plus a full-width
+#: The room `open_section` reserves by default: a title plus a full-width
 #: figure. Defined here rather than repeated at each call site — `outline.py`
 #: had its own copy of this number.
 SECTION_ROOM = 146.0
@@ -114,8 +114,8 @@ def table_room(n_rows: int, row_h: float = TBL_ROW_H, head_h: float = TBL_HEAD_H
     return (full + 12.0) if full <= PAGE_CAP - HEAD_ROOM else SPLIT_ROOM
 
 
-# Deprecated aliases, kept for one release so a consumer pinned to 0.6 keeps
-# working. Removed at 1.0 — see CHANGELOG "Upgrading to 1.0".
+
+
 def chrome_labels() -> dict:
     """A COPY of reportkit's own chrome copy, for a host building a label table.
 
@@ -126,19 +126,14 @@ def chrome_labels() -> dict:
     return _copy.deepcopy(CHROME_LABELS)
 
 
-_TBL_ROW_H, _TBL_HEAD_H, _TBL_PAD = TBL_ROW_H, TBL_HEAD_H, TBL_PAD
-_PAGE_CAP, _HEAD_ROOM, _SPLIT_ROOM = PAGE_CAP, HEAD_ROOM, SPLIT_ROOM
-_table_room = table_room
-
-
 class ReportDocument(FPDF):
     """A4 portrait document: themed chrome, IBM Plex Sans, and pagination that
     keeps a heading with the block it introduces."""
 
-    def __init__(self, lang: str = "en", doc_ref: str = "",
+    def __init__(self, lang: str = "en", doc_ref: str = "", *,
                  primary_color: tuple = _DEFAULT_PRIMARY,
                  accent_color: tuple = _DEFAULT_ACCENT,
-                 firm_name: str = "Structured Note Analytics",
+                 firm_name: str = "",
                  firm_logo_bytes: bytes | None = None,
                  report_title: str | None = None,
                  website: str = "", contact: str = "",
@@ -264,7 +259,7 @@ class ReportDocument(FPDF):
             _log.debug("Using IBM Plex Sans")
         else:
             # Every page renders in Helvetica from here — Latin-1 only, so
-            # `_safe(latin1=True)` becomes load-bearing. This is a whole-document
+            # `sanitise(latin1=True)` becomes load-bearing. This is a whole-document
             # event, not a detail.
             self._font_family = "Helvetica"
             self._use_unicode = False
@@ -274,14 +269,14 @@ class ReportDocument(FPDF):
     # ------------------------------------------------------------------
     # Font helpers
     # ------------------------------------------------------------------
-    def _sf(self, size: float, weight: str = "regular") -> None:
+    def sf(self, size: float, weight: str = "regular") -> None:
         """Set font by semantic weight via the active font map — IBM Plex Sans
         (or Helvetica) by default, overridden by custom brand fonts when a brand
         registers them (see _register_brand_fonts)."""
         family, style = self._sf_map.get(weight, self._sf_map["regular"])
         self.set_font(family, style, size)
 
-    def _fit_font(self, text: str, max_w: float, size: float,
+    def fit_font(self, text: str, max_w: float, size: float,
                   weight: str = "regular", min_size: float = 5.5) -> None:
         """Set the font to the largest size <= `size` at which `text` fits in
         `max_w` mm on one line, never going below `min_size`. Prevents the
@@ -289,14 +284,14 @@ class ReportDocument(FPDF):
         overflowing into the neighbouring column or being clipped — long names
         shrink just enough to fit instead."""
         s = size
-        self._sf(s, weight)
-        safe = self._safe(text)
+        self.sf(s, weight)
+        safe = self.safe(text)
         while s > min_size and self.get_string_width(safe) > max_w:
             s -= 0.25
-            self._sf(s, weight)
+            self.sf(s, weight)
 
-    def _safe(self, text: object) -> str:
-        return _safe(text, latin1=not self._use_unicode)
+    def safe(self, text: object) -> str:
+        return sanitise(text, latin1=not self._use_unicode)
 
     def apply_brand(self, brand, *, font_dir=None) -> None:
         """Apply everything in a `Brand` that is not the palette.
@@ -355,7 +350,11 @@ class ReportDocument(FPDF):
         """
         if self._labels is not None:
             got = self._labels(key, self.lang)
-            if got is not None and got != key:
+            # `None` is the miss sentinel — and ONLY None. This used to also
+            # treat "the table returned the key itself" as a miss, so a host
+            # whose vocabulary legitimately maps `figure_word` to
+            # `"figure_word"` silently got reportkit's word instead of its own.
+            if got is not None:
                 return got
         return CHROME_LABELS.get(key, {}).get(self.lang) \
             or CHROME_LABELS.get(key, {}).get("en") or key
@@ -365,18 +364,18 @@ class ReportDocument(FPDF):
     # ------------------------------------------------------------------
     def cell(self, *args, **kwargs):
         if len(args) >= 3 and isinstance(args[2], str):
-            args = (args[0], args[1], self._safe(args[2]), *args[3:])
+            args = (args[0], args[1], self.safe(args[2]), *args[3:])
         for k in ("text", "txt"):
             if k in kwargs and isinstance(kwargs[k], str):
-                kwargs[k] = self._safe(kwargs[k])
+                kwargs[k] = self.safe(kwargs[k])
         return super().cell(*args, **kwargs)
 
     def multi_cell(self, *args, **kwargs):
         if len(args) >= 3 and isinstance(args[2], str):
-            args = (args[0], args[1], self._safe(args[2]), *args[3:])
+            args = (args[0], args[1], self.safe(args[2]), *args[3:])
         for k in ("text", "txt"):
             if k in kwargs and isinstance(kwargs[k], str):
-                kwargs[k] = self._safe(kwargs[k])
+                kwargs[k] = self.safe(kwargs[k])
         return super().multi_cell(*args, **kwargs)
 
     # ------------------------------------------------------------------
@@ -415,22 +414,6 @@ class ReportDocument(FPDF):
         else:
             self.ln(6)   # generous separation between stacked sections
         self.section_title(text, _outline_level=level)
-
-    def start_section(self, text: str, min_room: float = SECTION_ROOM):
-        """Deprecated alias for `open_section`. Removed at 1.0.
-
-        The rename is the point, not cosmetics: this method SHADOWED
-        `FPDF.start_section`, which is how fpdf2 builds the PDF outline (the
-        bookmark tree a reader shows in its sidebar). While it shadowed, no
-        reportkit document could have one, and `write_html()` — which calls the
-        base method for `<h1>`..`<h6>` — silently got a pagination decision
-        instead of a heading.
-        """
-        import warnings as _w
-        _w.warn("ReportDocument.start_section is deprecated; use open_section. "
-                "The name is being returned to fpdf2, whose start_section builds "
-                "the document outline.", DeprecationWarning, stacklevel=2)
-        return self.open_section(text, min_room=min_room)
 
     # ------------------------------------------------------------------
     # Document outline (PDF bookmarks)
@@ -474,7 +457,7 @@ class ReportDocument(FPDF):
         page_at, y_at = anchor if anchor else (self.page_no(), self.y)
         try:
             self.y = y_at if page_at == self.page_no() else self.t_margin
-            super().start_section(self._safe(title), level=emitted, strict=False)
+            super().start_section(self.safe(title), level=emitted, strict=False)
             self._outline_open = stack + [sem_level]
             # Bind any contents row that named this heading. A numbered head
             # registers as "01 · Holdings" while the contents row says
@@ -516,7 +499,7 @@ class ReportDocument(FPDF):
         """
         self._mark_outline(title, level)
 
-    def _eyebrow(self, x: float, y: float, text: str, color: tuple,
+    def eyebrow(self, x: float, y: float, text: str, color: tuple,
                  size: float = 7.0, tracking: float = 0.4,
                  w: float = 0.0, align: str = "L") -> None:
         return self.theme.eyebrow(self, x, y, text, color,
@@ -540,10 +523,10 @@ class ReportDocument(FPDF):
                            link_key=title)
         return out
 
-    def _decorate_void(self, variant: int = 0, min_gap: float = 44.0) -> None:
+    def decorate_void(self, variant: int = 0, min_gap: float = 44.0) -> None:
         return self.theme.decorate_void(self, variant=variant, min_gap=min_gap)
 
-    def _decorate_void_photo(self, x0: float, x1: float, y: float,
+    def decorate_void_photo(self, x0: float, x1: float, y: float,
                              floor: float, gap: float, filler: bytes) -> bool:
         return self.theme.decorate_void_photo(self, x0, x1, y, floor, gap, filler)
 
@@ -555,7 +538,7 @@ class ReportDocument(FPDF):
     # about the page being left skipped the last content page ahead of any cover.
     def add_page(self, *args, **kwargs):
         if self.page_no() > 0 and self.page_no() not in self._cover_pages:
-            self._decorate_void(variant=self.page_no() % 3)
+            self.decorate_void(variant=self.page_no() % 3)
         return super().add_page(*args, **kwargs)
 
     # ------------------------------------------------------------------
@@ -565,7 +548,7 @@ class ReportDocument(FPDF):
     # its module docstring: every step of that order fails silently when a
     # caller improvises, so the sequence is a context manager rather than a
     # recipe in a docstring.
-    def full_bleed_page(self, image: bytes | None = None):
+    def full_bleed(self, image: bytes | None = None):
         """Context manager: a painted, chrome-free page. Yields `(w, h)`."""
         return _rk_cover.full_bleed(self, image)
 
@@ -574,15 +557,15 @@ class ReportDocument(FPDF):
         return _rk_cover.draw_logo_fit(self, logo_b, x, y, max_h, max_w,
                                        cover=cover)
 
-    def cover_logo(self) -> None:
+    def draw_cover_logo(self) -> None:
         """The brand's cover wordmark, in the brand's chosen place."""
         return _rk_cover.draw_cover_logo(self, self.w, self.h)
 
-    def cover_sigil(self) -> None:
+    def draw_sigil(self) -> None:
         """The brand's emblem, bleeding off an edge as a faint motif."""
         return _rk_cover.draw_sigil(self, self.w, self.h)
 
-    def cover_left_photo(self, x0: float, top: float, w: float, bottom: float,
+    def draw_left_photo(self, x0: float, top: float, w: float, bottom: float,
                          img: bytes) -> bool:
         """A banded brand photo down a tall column. False ⇒ fall back."""
         return _rk_cover.left_photo(self, x0, top, w, bottom, img)
@@ -598,11 +581,11 @@ class ReportDocument(FPDF):
         at = (self.page_no(), self.y)
         out = self.theme.subsection(self, text, min_room=min_room)
         self._mark_outline(text, 2, at)
-        # Claim the page for whatever block comes next — see _head_claimed().
+        # Claim the page for whatever block comes next — see head_claimed().
         self._head_page = self.page_no()
         return out
 
-    def _head_claimed(self) -> bool:
+    def head_claimed(self) -> bool:
         """True (once) if a heading was just drawn on THIS page.
 
         A block that is introduced by a heading must not run its own
@@ -618,14 +601,14 @@ class ReportDocument(FPDF):
 
     def body(self, text: str, h: float = 4.5):
         """8.5pt regular body text."""
-        self._sf(8.5, "regular")
+        self.sf(8.5, "regular")
         self.set_text_color(*_TEXT)
         self.multi_cell(0, h, text)
         self.ln(1.5)
 
     def bullet(self, text: str):
         """8.5pt bullet point with proper indent."""
-        self._sf(8.5, "regular")
+        self.sf(8.5, "regular")
         self.set_text_color(*_TEXT)
         x0 = self.get_x()
         self.cell(5, 5, "•" if self._use_unicode else chr(149))
@@ -644,10 +627,10 @@ class ReportDocument(FPDF):
             if row_idx % 2 == 0:
                 self.set_fill_color(*_ROW_ALT)
                 self.rect(self.l_margin, y0, col_w[0] + col_w[1], 8.5, style="F")
-            self._sf(8.5, "regular")    # label — reference uses regular weight in table cells
+            self.sf(8.5, "regular")    # label — reference uses regular weight in table cells
             self.set_text_color(*_TEXT)
             self.cell(col_w[0], 8.5, k)
-            self._sf(8.5, "regular")
+            self.sf(8.5, "regular")
             self.cell(col_w[1], 8.5, v, new_x="LMARGIN", new_y="NEXT")
         self.ln(3)
 
@@ -685,13 +668,13 @@ class ReportDocument(FPDF):
                     self.rect(self.l_margin, self.get_y(), tbl_w, TBL_HEAD_H, style="F")
             else:
                 self.set_fill_color(*self.ink)
-            self._sf(7.5, "body_bold")
+            self.sf(7.5, "body_bold")
             for idx, (h, w, a) in enumerate(zip(headers, col_widths, aligns)):
                 self.set_text_color(*(self.lime if idx == 0 else _WHITE))
                 self.cell(w, TBL_HEAD_H, f" {h} ", border=0, fill=not rounded_card, align=a)
             self.ln()
             self.set_text_color(*_TEXT)
-            self._sf(8, "regular")
+            self.sf(8, "regular")
 
         # Keep the whole table together when it can fit on one page: if the
         # header + all rows won't fit in the space left but WOULD fit on a fresh
@@ -701,7 +684,7 @@ class ReportDocument(FPDF):
         # orphaned on the page the table just left.
         _needed = TBL_HEAD_H + len(rows) * TBL_ROW_H + TBL_PAD
         _avail  = self.h - 30 - self.get_y()
-        if self._head_claimed():
+        if self.head_claimed():
             # A heading directly above already reserved for us; only break if we
             # cannot even start here (which its reservation should have avoided).
             if self.get_y() > self.h - 55:
@@ -788,13 +771,13 @@ class ReportDocument(FPDF):
                     self.rect(self.l_margin, self.get_y(), tbl_w, HEAD_H, style="F")
             else:
                 self.set_fill_color(*self.ink)
-            self._sf(7.5, "body_bold")
+            self.sf(7.5, "body_bold")
             for idx, (h, w, a) in enumerate(zip(headers, col_widths, aligns)):
                 self.set_text_color(*(self.lime if idx == 0 else _WHITE))
                 self.cell(w, HEAD_H, f" {h} ", border=0, fill=not rounded_card, align=a)
             self.ln()
             self.set_text_color(*_TEXT)
-            self._sf(8, "regular")
+            self.sf(8, "regular")
 
         # Keep the whole table together when it fits on one page — the same
         # three-way decision as `data_table`, and it must be the same one: a
@@ -802,14 +785,14 @@ class ReportDocument(FPDF):
         # taken here can only disagree with it.
         #
         # Consuming the claim is not optional even where the branch is a no-op.
-        # This method used not to call `_head_claimed()` at all, so the claim
+        # This method used not to call `head_claimed()` at all, so the claim
         # stayed set and the NEXT `data_table` on the page skipped its own
         # keep-together rule with no heading above it — a stale reservation
         # spent by a block that never made one.
         _needed   = HEAD_H + len(rows) * ROW_H + 6
         _avail    = self.h - 30 - self.get_y()
         _page_cap = self.h - 30 - 21
-        if self._head_claimed():
+        if self.head_claimed():
             if self.get_y() > self.h - 55:
                 self.add_page()
         elif _needed > _avail and _needed <= _page_cap:
@@ -870,11 +853,11 @@ class ReportDocument(FPDF):
                     pass
             self.set_xy(text_x, row_y + (ROW_H - 4) / 2)
             _name_w = col_widths[0] - (text_x - self.l_margin) - 1
-            self._fit_font(name, _name_w, 8, "semibold")
+            self.fit_font(name, _name_w, 8, "semibold")
             self.set_text_color(*_TEXT)
-            self.cell(_name_w, 4, self._safe(name))
+            self.cell(_name_w, 4, self.safe(name))
             # Remaining columns — transparent text over the row background
-            self._sf(8, "regular")
+            self.sf(8, "regular")
             self.set_text_color(*_TEXT)
             self.set_xy(self.l_margin + col_widths[0], row_y)
             for cell_val, w, a in zip(row[1:], col_widths[1:], aligns[1:]):
@@ -919,12 +902,12 @@ class ReportDocument(FPDF):
             except TypeError:
                 self.rect(x, yr, w, h, style="F")
             # Tracked muted label.
-            lbl = self._safe(label.upper())
+            lbl = self.safe(label.upper())
             size = 6.3
-            self._sf(size, "body_bold")
+            self.sf(size, "body_bold")
             while self.get_string_width(lbl) > (w - 6) and size > 4.4:
                 size -= 0.2
-                self._sf(size, "body_bold")
+                self.sf(size, "body_bold")
             self.set_xy(x + 4, yr + 3.6)
             self.set_text_color(*self.muted)
             try:
@@ -937,13 +920,13 @@ class ReportDocument(FPDF):
             except Exception:
                 pass
             # Value — ink, or amber when negative; shrink/wrap a long free-text value.
-            val = self._safe(str(value))
+            val = self.safe(str(value))
             self.set_text_color(*(self.amber if val.strip().startswith("-") else self.ink))
             vsize = 14.0
-            self._sf(vsize, "bold")
+            self.sf(vsize, "bold")
             while self.get_string_width(val) > (w - 6) and vsize > 8.5:
                 vsize -= 0.3
-                self._sf(vsize, "bold")
+                self.sf(vsize, "bold")
             if self.get_string_width(val) > (w - 6):
                 self.set_xy(x + 4, yr + 8.2)
                 self.multi_cell(w - 6, vsize * 0.42, val,
@@ -983,7 +966,7 @@ class ReportDocument(FPDF):
         # now drives the chart series palette, and a caption that tracks the chart
         # lines looked off — the caption is chrome, so it stays on the brand head
         # colour like every other heading.
-        self._sf(8.5, "bold")
+        self.sf(8.5, "bold")
         self.set_text_color(*self.ink)
         self.multi_cell(0, 4.5, f"{self.t('figure_word')} {self._fig_no}: {caption}", align="C")
         self.ln(1)
@@ -1004,7 +987,7 @@ class ReportDocument(FPDF):
         self.set_y(_img_y + h + _fpad)
         self.ln(1.5)
         # Source line — italic muted, like the prototype caption source.
-        self._sf(7, "italic")
+        self.sf(7, "italic")
         self.set_text_color(*self.muted)
         self.cell(0, 3.5, source, align="C", new_x="LMARGIN", new_y="NEXT")
         self.set_text_color(*_TEXT)
@@ -1016,8 +999,8 @@ class ReportDocument(FPDF):
         if w is None:
             w = self.w - self.l_margin - self.r_margin
         x0, y0 = self.l_margin, self.get_y()
-        self._sf(8, "regular")
-        lines = self.multi_cell(w - 12, 4.3, self._safe(text), dry_run=True, output="LINES")
+        self.sf(8, "regular")
+        lines = self.multi_cell(w - 12, 4.3, self.safe(text), dry_run=True, output="LINES")
         box_h = 11 + len(lines) * 4.3 + 4
         if y0 + box_h > self.h - 28:
             self.add_page()
@@ -1031,11 +1014,28 @@ class ReportDocument(FPDF):
         self.set_fill_color(*self.primary_color)
         self.rect(x0, y0, 1.4, box_h, style="F")
         self.set_xy(x0 + 7, y0 + 4.0)
-        self._sf(8.5, "bold")
+        self.sf(8.5, "bold")
         self.set_text_color(*self.ink)
         self.cell(w - 11, 5, title)
         self.set_xy(x0 + 7, y0 + 10.5)
-        self._sf(8, "regular")
+        self.sf(8, "regular")
         self.set_text_color(*self.body_ink)
         self.multi_cell(w - 11, 4.3, text)
         self.set_y(y0 + box_h + 4)
+
+
+#: The module's public surface. Without this, `import *` re-exported
+#: everything this module imported — including `FPDF`.
+__all__ = [
+    "CHROME_LABELS",
+    "HEAD_ROOM",
+    "PAGE_CAP",
+    "ReportDocument",
+    "SECTION_ROOM",
+    "SPLIT_ROOM",
+    "TBL_HEAD_H",
+    "TBL_PAD",
+    "TBL_ROW_H",
+    "chrome_labels",
+    "table_room",
+]

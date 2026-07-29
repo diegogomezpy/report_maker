@@ -18,7 +18,7 @@ import pytest
 pytest.importorskip("fpdf")
 
 import reportkit.fonts as F                                     # noqa: E402
-from reportkit.text import _safe                                # noqa: E402
+from reportkit.text import sanitise                                # noqa: E402
 
 
 class Doc:
@@ -65,14 +65,14 @@ def test_latin1_sanitisation_is_what_makes_the_fallback_survivable():
     """On the Helvetica path every glyph outside Latin-1 must be transliterated
     first — the two are one mechanism, which is why they moved together."""
     hard = "Rendimiento — 12,5% · κ ≥ 0,5 … “quoted”"
-    out = _safe(hard, latin1=True)
+    out = sanitise(hard, latin1=True)
     out.encode("latin-1")            # must not raise; that is the whole point
     assert "kappa" in out and ">=" in out and "—" not in out
 
 
 def test_unicode_path_leaves_typography_alone():
     s = "Rendimiento — 12,5% · κ ≥ 0,5"
-    assert _safe(s) == s, "with a Unicode face nothing should be transliterated"
+    assert sanitise(s) == s, "with a Unicode face nothing should be transliterated"
 
 
 def test_brand_font_overrides_the_weight_map(tmp_path):

@@ -71,6 +71,12 @@ def test_theme_reads_only_what_apply_writes():
     # document internals.
     verbs = re.compile(r"^(set|get|add|new|use|is|has)_")
     not_brand = {
+        # The theme-author protocol — methods a theme draws THROUGH, not brand
+        # state. Public since 1.0, so the verb-prefix rule no longer excludes
+        # them and they have to be named.
+        "sf", "safe", "eyebrow", "fit_font", "head_claimed", "decorate_void",
+        "decorate_void_photo", "draw_cover_logo", "draw_sigil", "draw_left_photo",
+        "full_bleed", "bookmark", "link_for", "open_section", "start_section",
         "cell", "multi_cell", "rect", "line", "image", "text", "write", "ln",
         "local_context", "drawing", "pattern", "page_no", "output", "dashed_line",
         "w", "h", "k", "x", "y", "l_margin", "r_margin", "t_margin", "b_margin",

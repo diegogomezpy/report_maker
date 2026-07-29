@@ -20,7 +20,7 @@ _log = logging.getLogger(__name__)
 
 def cover_crop(raw: bytes | None, aspect: float,
                bias_x: float = 0.0, bias_y: float = 0.0) -> bytes | None:
-    """Memoised `_cover_crop`. See that function for the geometry.
+    """Memoised `cover_crop_uncached`. See that function for the geometry.
 
     A report calls this once per empty-space photo band and once per cover, and
     the same few source images come round again and again — in a profile of a
@@ -47,10 +47,10 @@ def cover_crop(raw: bytes | None, aspect: float,
 
 @functools.lru_cache(maxsize=96)
 def _cover_crop_cached(raw: bytes, aspect: float, bias_x: float, bias_y: float):
-    return _cover_crop(raw, aspect, bias_x, bias_y)
+    return cover_crop_uncached(raw, aspect, bias_x, bias_y)
 
 
-def _cover_crop(raw: bytes | None, aspect: float,
+def cover_crop_uncached(raw: bytes | None, aspect: float,
                 bias_x: float = 0.0, bias_y: float = 0.0) -> bytes | None:
     """Crop an image to `aspect` (= width / height) so a full-bleed placement
     fills the box without stretching (CSS object-fit: cover). `bias_x`/`bias_y`
@@ -284,3 +284,19 @@ def resolve_within(spec: str, root: Path) -> Path | None:
     except Exception:
         _log.warning(f"logo_file refused (outside the repo root): {spec!r}")
         return None
+
+
+#: The module's public surface. Without this, `import *` re-exported
+#: everything this module imported — including `FPDF`.
+__all__ = [
+    "MAX_IMAGE_PX",
+    "configure_limits",
+    "cover_crop",
+    "cover_crop_uncached",
+    "dimensions_sane",
+    "fetch_image_bytes",
+    "logo_aspect",
+    "read_local_image",
+    "resolve_within",
+    "to_embeddable_png",
+]

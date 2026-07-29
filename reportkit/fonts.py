@@ -169,3 +169,16 @@ def register_brand_fonts(pdf, branding: dict | None, brand_dir=None) -> None:
 # ──────────────────────────────────────────────────────────────────────────────
 # FPDF subclass
 # ──────────────────────────────────────────────────────────────────────────────
+
+
+#: The module's public surface. Without this, `import *` re-exported
+#: everything this module imported — including `FPDF`.
+__all__ = [
+    "DEFAULT_STYLE_MAP",
+    "FAMILY",
+    "FAMILY_LIGHT",
+    "FAMILY_SEMIBOLD",
+    "HELVETICA_STYLE_MAP",
+    "register_brand_fonts",
+    "register_default_family",
+]

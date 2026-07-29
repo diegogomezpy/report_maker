@@ -32,7 +32,7 @@ order.
 from __future__ import annotations
 
 from reportkit.document import SECTION_ROOM
-from reportkit.text import _safe
+from reportkit.text import sanitise
 from reportkit.theme import RULE_SOFT as _RULE_SOFT
 
 
@@ -122,15 +122,15 @@ def contents_list(pdf, groups, *, x: float, y: float, w: float,
         # instead of hanging `num_w` to the left.
         if number:
             pdf.set_xy(x + indent, yc)
-            pdf._sf(7.5, "bold"); pdf.set_text_color(*pdf.lime)
+            pdf.sf(7.5, "bold"); pdf.set_text_color(*pdf.lime)
             pdf.cell(num_w, row_h, number)
         indent += num_w
         pdf.set_xy(x + indent, yc)
-        pdf._sf(8.0, "regular"); pdf.set_text_color(*pdf.body_ink)
+        pdf.sf(8.0, "regular"); pdf.set_text_color(*pdf.body_ink)
         # `link=` makes the row clickable. The library drew a designed table of
         # contents that a reader could not use — the more discoverable half of
         # navigation, missing while the bookmark tree got all the attention.
-        pdf.cell(w - indent, row_h, _safe(text),
+        pdf.cell(w - indent, row_h, sanitise(text),
                  link=pdf.link_for(text) if hasattr(pdf, "link_for") else None)
         pdf.set_draw_color(*_RULE_SOFT); pdf.set_line_width(0.2)
         pdf.line(x, yc + row_h, x + w, yc + row_h)
@@ -142,10 +142,10 @@ def contents_list(pdf, groups, *, x: float, y: float, w: float,
         ind = 0.0
         if number:
             pdf.set_xy(x, yc)
-            pdf._sf(7.5, "bold"); pdf.set_text_color(*pdf.lime)
+            pdf.sf(7.5, "bold"); pdf.set_text_color(*pdf.lime)
             pdf.cell(num_w, row_h, number)
             ind = num_w
-        pdf._eyebrow(x + ind, yc + 0.4, name, pdf.primary_color,
+        pdf.eyebrow(x + ind, yc + 0.4, name, pdf.primary_color,
                      size=7.0, tracking=0.5, w=w - ind)
         # A head is drawn through the theme's eyebrow hook, which takes no
         # `link=`. Lay a link REGION over the row instead — the chapter rows are
@@ -197,3 +197,17 @@ def lazy_section(pdf, title: str, min_room: float = SECTION_ROOM, before=None):
             pdf.open_section(title, min_room=min_room)
             state["done"] = True
     return ensure
+
+
+#: The module's public surface. Without this, `import *` re-exported
+#: everything this module imported — including `FPDF`.
+__all__ = [
+    "MIN_ROW_H",
+    "NUM_W",
+    "contents_list",
+    "fit_rows",
+    "lazy_divider",
+    "lazy_section",
+    "plan_chapters",
+    "shed_to_fit",
+]

@@ -487,3 +487,23 @@ def resolve(cfg: dict | None, *, lang: str = "en", root=None, fetch=None,
         extras={k: cfg[k] for k in extra_keys if k in cfg},
         warnings=tuple(warn),
     )
+
+
+#: The module's public surface. Without this, `import *` re-exported
+#: everything this module imported — including `FPDF`.
+__all__ = [
+    "APPLIED_ATTRS",
+    "Brand",
+    "ImageRoles",
+    "KNOWN_KEYS",
+    "assign_images",
+    "brand_text",
+    "branding_color",
+    "decode_slots",
+    "hex_to_rgb",
+    "load_logo",
+    "resolve",
+    "resolve_palette",
+    "unknown_keys",
+    "validate_branding",
+]

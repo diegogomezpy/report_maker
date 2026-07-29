@@ -170,7 +170,7 @@ def sample_brand(theme: str | None = None, *, imagery: bool = True) -> dict:
     return cfg
 
 
-#: A table long enough to split across pages, which is the case `_table_room`
+#: A table long enough to split across pages, which is the case `table_room`
 #: exists for — and the size band (roughly 16–29 rows) where a capped estimate
 #: used to orphan the heading it was reserving room for.
 LONG_TABLE = [[f"Position {i:02d}", f"{i * 3.1:.1f}%", f"{100 - i * 2:.2f}",
@@ -188,7 +188,7 @@ def sample_document(theme: str | None = None, *, imagery: bool = True,
 
     import reportkit.branding as branding
     import reportkit.outline as outline
-    from reportkit.document import ReportDocument, _table_room
+    from reportkit.document import ReportDocument, table_room
 
     if font_dir is None:
         font_dir = Path(__file__).resolve().parent / "fonts"
@@ -203,14 +203,14 @@ def sample_document(theme: str | None = None, *, imagery: bool = True,
     pdf.chapter_nums = nums
 
     # ── cover ────────────────────────────────────────────────────────────
-    with pdf.full_bleed_page(pdf.cover_image_bytes) as (w, h):
-        pdf.cover_sigil()
-        pdf.cover_logo()
-        pdf._eyebrow(pdf.l_margin, h * 0.42, "QUARTERLY REVIEW",
+    with pdf.full_bleed(pdf.cover_image_bytes) as (w, h):
+        pdf.draw_sigil()
+        pdf.draw_cover_logo()
+        pdf.eyebrow(pdf.l_margin, h * 0.42, "QUARTERLY REVIEW",
                      pdf.section_rule_color, size=11.0, tracking=1.6,
                      w=w - 2 * pdf.l_margin)
         pdf.set_xy(pdf.l_margin, h * 0.46)
-        pdf._sf(34, "bold"); pdf.set_text_color(255, 255, 255)
+        pdf.sf(34, "bold"); pdf.set_text_color(255, 255, 255)
         pdf.multi_cell(w - 2 * pdf.l_margin, 14, "Meridian Balanced Fund")
 
     # ── contents ─────────────────────────────────────────────────────────
@@ -244,22 +244,22 @@ def sample_document(theme: str | None = None, *, imagery: bool = True,
 
     # ── the pagination case ──────────────────────────────────────────────
     # A heading immediately followed by a table too long to fit under it. This
-    # is what `_table_room` is for, and getting it wrong strands the heading on
+    # is what `table_room` is for, and getting it wrong strands the heading on
     # a page the table has left.
     #
-    # `min_room=_table_room(...)` is the documented call-site contract, and
+    # `min_room=table_room(...)` is the documented call-site contract, and
     # passing it here is the point: without it this sample takes `subsection`'s
     # 27mm default, never enters the reservation chain, and the pixel golden
     # renders identically to one built with `table_room` rebound to *raise*.
     pdf.section_divider(nums["holdings"], "HOLDINGS", "What we own")
-    pdf.subsection("Positions", min_room=_table_room(len(LONG_TABLE)))
+    pdf.subsection("Positions", min_room=table_room(len(LONG_TABLE)))
     pdf.data_table(["Name", "Weight", "Price", "Held"], LONG_TABLE)
-    pdf.subsection("Concentration", min_room=_table_room(2))
+    pdf.subsection("Concentration", min_room=table_room(2))
     pdf.data_table(["Bucket", "Weight"], [["Top 5", "31%"], ["Top 10", "48%"]])
 
     # The logo-row variant: 110 lines of public drawing code that no test in
     # this package reached before it appeared here.
-    pdf.subsection("By holding", min_room=_table_room(3, row_h=10.0))
+    pdf.subsection("By holding", min_room=table_room(3, row_h=10.0))
     pdf.logo_row_table(["Name", "Weight", "Return"],
                        [["Alpha Corp", "12.0%", "+4.1%"],
                         ["Beta SA", "9.5%", "-1.2%"],
@@ -269,18 +269,33 @@ def sample_document(theme: str | None = None, *, imagery: bool = True,
                         "Gamma Inc": labelled_png(64, 64, "G")})
 
     pdf.section_divider(nums["risk"], "RISK", "Exposures")
-    pdf.subsection("By factor", min_room=_table_room(2))
+    pdf.subsection("By factor", min_room=table_room(2))
     pdf.data_table(["Factor", "Beta"], [["Equity", "0.61"], ["Rates", "-0.12"]])
 
     # ── back page ────────────────────────────────────────────────────────
-    with pdf.full_bleed_page(pdf.back_image_bytes) as (w, h):
+    with pdf.full_bleed(pdf.back_image_bytes) as (w, h):
         pdf.draw_logo_fit(pdf.cover_logo_bytes or pdf.firm_logo_bytes,
                           pdf.l_margin, 15, 12.0, 58.0, cover=True)
         pdf.set_xy(pdf.l_margin, 45)
-        pdf._sf(16, "bold"); pdf.set_text_color(255, 255, 255)
+        pdf.sf(16, "bold"); pdf.set_text_color(255, 255, 255)
         pdf.cell(0, 8, pdf.t("disclaimer_title"), new_x="LMARGIN", new_y="NEXT")
         pdf.set_xy(pdf.l_margin, 58)
-        pdf._sf(8, "regular"); pdf.set_text_color(255, 255, 255)
+        pdf.sf(8, "regular"); pdf.set_text_color(255, 255, 255)
         pdf.multi_cell(w - 2 * pdf.l_margin, 4.2, pdf.disclaimer_body, align="J")
 
     return bytes(pdf.output())
+
+
+#: The module's public surface. Without this, `import *` re-exported
+#: everything this module imported — including `FPDF`.
+__all__ = [
+    "LONG_TABLE",
+    "SAMPLE_BRAND",
+    "flat_png",
+    "gradient_png",
+    "labelled_png",
+    "rasterise",
+    "sample_brand",
+    "sample_document",
+    "stub_figures",
+]

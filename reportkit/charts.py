@@ -233,6 +233,33 @@ def _kopts_muted():
     yield
 
 
+def install_figure_hook(fn):
+    """Intercept figure rasterisation; returns a token for `reset_figure_hook`.
+
+    The supported way to reach `FIG_HOOK`. Its IDENTITY is load-bearing: a host
+    that aliases the ContextVar (`_HOOK = charts.FIG_HOOK`) and later `.set()`s
+    through that alias is relying on there being exactly one object. Binding a
+    second one does not error — it silently disables interception, which in the
+    host that shipped this meant a real headless Chrome starting inside CI.
+    """
+    return FIG_HOOK.set(fn)
+
+
+def reset_figure_hook(token) -> None:
+    """Restore whatever hook was installed before `install_figure_hook`."""
+    FIG_HOOK.reset(token)
+
+
+def figure_hook():
+    """The hook currently installed, or None."""
+    return FIG_HOOK.get()
+
+
+__all__ = ["FIG_HOOK", "install_figure_hook", "reset_figure_hook", "figure_hook",
+           "fig_to_png", "theme_figure", "kaleido_session",
+           "DEFAULT_PRIMARY", "DEFAULT_ACCENT", "DEFAULT_SECONDARY"]
+
+
 def fig_to_png(fig, width: int = 900, height: int = 500,
                primary_color: tuple = DEFAULT_PRIMARY,
                accent_color: tuple = DEFAULT_ACCENT,

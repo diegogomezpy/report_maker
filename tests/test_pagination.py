@@ -2,12 +2,12 @@
 
 This is the package's most load-bearing logic and, until now, its only guard
 lived in the application reportkit was extracted from. That is the wrong way
-round: `_table_room` is library code, so a consumer who changes it here finds
+round: `table_room` is library code, so a consumer who changes it here finds
 out downstream or not at all.
 
 The rule is not one check but a chain — `subsection()` claims the page,
-`_head_claimed()` consumes the claim, `data_table()` skips its own break rule,
-and `_table_room()` reserves using the SAME constants `data_table` breaks on.
+`head_claimed()` consumes the claim, `data_table()` skips its own break rule,
+and `table_room()` reserves using the SAME constants `data_table` breaks on.
 
 Two distinct failures, and they need different tests:
 
@@ -21,14 +21,14 @@ Two distinct failures, and they need different tests:
 
 These tests were verified by mutation, which is the only way to know a
 regression test is worth its runtime — the first draft of this file passed
-against a deliberately broken `_table_room` and was guarding nothing:
+against a deliberately broken `table_room` and was guarding nothing:
 
-    _SPLIT_ROOM 40 -> 20          13 failures   (orphan)
-    _table_room capped at 130mm   13 failures   (split)
+    SPLIT_ROOM 40 -> 20          13 failures   (orphan)
+    table_room capped at 130mm   13 failures   (split)
     drop the +12mm slack           1 failure
     ignore the claim in data_table 1 failure
 
-Note the reservation is the CALL SITE's job: `subsection(min_room=_table_room(n))`
+Note the reservation is the CALL SITE's job: `subsection(min_room=table_room(n))`
 is the documented usage, and a caller that forgets it gets `subsection`'s 27mm
 default — enough for a heading and nothing else. That is not a bug in the chain,
 it is the chain not being used, and these tests exercise it as documented.
@@ -43,7 +43,7 @@ pytest.importorskip("fpdf")
 
 import reportkit.branding as B                       # noqa: E402
 from reportkit.document import (                     # noqa: E402
-    _HEAD_ROOM, _PAGE_CAP, _SPLIT_ROOM, _TBL_HEAD_H, _TBL_ROW_H, _table_room,
+    HEAD_ROOM, PAGE_CAP, SPLIT_ROOM, TBL_HEAD_H, TBL_ROW_H, table_room,
     ReportDocument,
 )
 
@@ -132,7 +132,7 @@ def orphans(n: int, rooms=ROOMS):
         pdf = Recorder()
         pdf.add_page()
         fill_to(pdf, room)
-        pdf.subsection("Positions", min_room=_table_room(n))
+        pdf.subsection("Positions", min_room=table_room(n))
         pdf.data_table(["Name", "A", "B"], rows(n))
         head, first = pdf.page_of("Positions"), pdf.page_of("Row 01")
         if head is None or first is None or head != first:
@@ -160,7 +160,7 @@ def test_a_heading_is_not_the_last_thing_on_its_page():
     pdf.add_page()
     for i in range(4):
         fill_to(pdf, 55.0)
-        pdf.subsection(f"Block {i}", min_room=_table_room(18 + i))
+        pdf.subsection(f"Block {i}", min_room=table_room(18 + i))
         pdf.data_table(["Name", "A", "B"], rows(18 + i))
         pdf.add_page()
     stranded = [p for p, content in pdf.by_page().items()
@@ -175,7 +175,7 @@ def splits(n: int, rooms=ROOMS):
         pdf = Recorder()
         pdf.add_page()
         fill_to(pdf, room)
-        pdf.subsection("Positions", min_room=_table_room(n))
+        pdf.subsection("Positions", min_room=table_room(n))
         pdf.data_table(["Name", "A", "B"], rows(n))
         first, last = pdf.page_of("Row 01"), pdf.page_of(f"Row {n:02d}")
         if first != last:
@@ -183,12 +183,12 @@ def splits(n: int, rooms=ROOMS):
     return bad
 
 
-@pytest.mark.parametrize("n", [n for n in range(1, 30) if _table_room(n) != _SPLIT_ROOM])
+@pytest.mark.parametrize("n", [n for n in range(1, 30) if table_room(n) != SPLIT_ROOM])
 def test_a_table_short_enough_to_keep_whole_is_never_split(n):
     """The other half of the contract, and the half a rows x rooms orphan sweep
     cannot see.
 
-    Since `_head_claimed()` suppresses `data_table`'s own break rule, a
+    Since `head_claimed()` suppresses `data_table`'s own break rule, a
     reservation that is too SMALL no longer strands the heading — the table just
     starts too low and splits. Quieter than an orphan and still wrong: the whole
     point of reserving the full height is that a short table stays in one piece.
@@ -201,16 +201,16 @@ def test_a_table_short_enough_to_keep_whole_is_never_split(n):
 
 
 def test_the_split_allowance_leaves_the_cursor_where_data_table_will_accept_it():
-    """`_SPLIT_ROOM` is derived, not chosen, and this is the derivation as code.
+    """`SPLIT_ROOM` is derived, not chosen, and this is the derivation as code.
 
     `data_table` gives up and breaks when `y > h - 55`. A heading drawing at the
-    worst position its reservation allows, `h - b_margin - _SPLIT_ROOM`, consumes
-    `_HEAD_ROOM` and must still leave the cursor at or above that line:
+    worst position its reservation allows, `h - b_margin - SPLIT_ROOM`, consumes
+    `HEAD_ROOM` and must still leave the cursor at or above that line:
 
-        h - 28 - _SPLIT_ROOM + _HEAD_ROOM  <=  h - 55   =>   _SPLIT_ROOM >= 37
+        h - 28 - SPLIT_ROOM + HEAD_ROOM  <=  h - 55   =>   SPLIT_ROOM >= 37
     """
-    assert _SPLIT_ROOM >= 37.0, (
-        f"_SPLIT_ROOM={_SPLIT_ROOM} lets a heading draw low enough that "
+    assert SPLIT_ROOM >= 37.0, (
+        f"SPLIT_ROOM={SPLIT_ROOM} lets a heading draw low enough that "
         "data_table breaks out from under it")
 
 
@@ -220,32 +220,32 @@ def test_a_table_that_fits_a_page_is_reserved_whole():
     """A short table is kept whole, so the heading must reserve ALL of it — not
     a capped estimate, which is what let the table bounce out from under it."""
     n = 10
-    full = _TBL_HEAD_H + n * _TBL_ROW_H + 6.0
-    assert _table_room(n) >= full
+    full = TBL_HEAD_H + n * TBL_ROW_H + 6.0
+    assert table_room(n) >= full
 
 
 def test_a_table_too_long_to_keep_whole_only_reserves_a_foothold():
     """It is going to split anyway; demanding its full height would break the
     heading to a fresh page for no gain and leave a void behind it."""
-    assert _table_room(200) == _SPLIT_ROOM
+    assert table_room(200) == SPLIT_ROOM
 
 
 def test_the_switch_between_the_two_is_where_a_table_stops_fitting():
-    """The threshold is `_PAGE_CAP - _HEAD_ROOM`, not `_PAGE_CAP`: a table under
+    """The threshold is `PAGE_CAP - HEAD_ROOM`, not `PAGE_CAP`: a table under
     a heading starts ~10mm lower than one on a bare page, so a table that fits
     246mm but not 236mm cannot be kept whole here at all. Promising to reserve
     it anyway just moves the collision one page along."""
-    small = [n for n in range(1, 60) if _table_room(n) != _SPLIT_ROOM]
-    large = [n for n in range(1, 60) if _table_room(n) == _SPLIT_ROOM]
+    small = [n for n in range(1, 60) if table_room(n) != SPLIT_ROOM]
+    large = [n for n in range(1, 60) if table_room(n) == SPLIT_ROOM]
     assert small and large, "both regimes must be reachable"
     assert max(small) + 1 == min(large), "one clean switch, not a ragged edge"
     kept = max(small)
-    assert _TBL_HEAD_H + kept * _TBL_ROW_H + 6.0 <= _PAGE_CAP
+    assert TBL_HEAD_H + kept * TBL_ROW_H + 6.0 <= PAGE_CAP
 
 
 def test_the_reservation_grows_with_the_table():
-    kept = [n for n in range(1, 60) if _table_room(n) != _SPLIT_ROOM]
-    got = [_table_room(n) for n in kept]
+    kept = [n for n in range(1, 60) if table_room(n) != SPLIT_ROOM]
+    got = [table_room(n) for n in kept]
     assert got == sorted(got), "a longer kept-whole table must reserve more"
 
 
@@ -261,9 +261,9 @@ def test_logo_row_table_consumes_the_claim_it_was_given():
     """
     pdf = Recorder()
     pdf.add_page()
-    pdf.subsection("Holdings", min_room=_table_room(3, row_h=10.0))
+    pdf.subsection("Holdings", min_room=table_room(3, row_h=10.0))
     pdf.logo_row_table(["Name", "Weight"], [["A", "1%"], ["B", "2%"]], {})
-    assert pdf._head_claimed() is False, "claim leaked to the next block"
+    assert pdf.head_claimed() is False, "claim leaked to the next block"
 
 
 @pytest.mark.parametrize("n", [2, 8, 16, 23, 24, 30])
@@ -276,7 +276,7 @@ def test_a_heading_keeps_its_logo_row_table(n):
         pdf = Recorder()
         pdf.add_page()
         fill_to(pdf, room)
-        pdf.subsection("Holdings", min_room=_table_room(n, row_h=10.0))
+        pdf.subsection("Holdings", min_room=table_room(n, row_h=10.0))
         pdf.logo_row_table(["Name", "Weight"],
                            [[f"Row {i:02d}", f"{i}%"] for i in range(1, n + 1)], {})
         head, first = pdf.page_of("Holdings"), pdf.page_of("Row 01")
@@ -293,8 +293,8 @@ def test_the_claim_is_consumed_once():
     pdf = ReportDocument(font_dir=FONTS)
     pdf.add_page()
     pdf.subsection("Head")
-    assert pdf._head_claimed() is True
-    assert pdf._head_claimed() is False
+    assert pdf.head_claimed() is True
+    assert pdf.head_claimed() is False
 
 
 def test_a_claim_does_not_survive_a_page_break():
@@ -302,4 +302,4 @@ def test_a_claim_does_not_survive_a_page_break():
     pdf.add_page()
     pdf.subsection("Head")
     pdf.add_page()
-    assert pdf._head_claimed() is False, "a claim is for the page it was made on"
+    assert pdf.head_claimed() is False, "a claim is for the page it was made on"

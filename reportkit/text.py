@@ -13,20 +13,20 @@ how the decision loses its input.
 """
 from __future__ import annotations
 
-_EMOJI_STRIP = {
+EMOJI_STRIP = {
     "✅": "OK", "⚠️": "!", "❌": "x", "🚀": ">>", "⏳": "...",
     "®": "", "™": "", "©": "",
 }
 
 
-def _safe(text: object, *, latin1: bool = False) -> str:
+def sanitise(text: object, *, latin1: bool = False) -> str:
     """Sanitise text for the PDF.
 
     With IBM Plex Sans (Unicode font) only emojis need neutralising.
     Pass latin1=True only for the Helvetica fallback path.
     """
     s = str(text)
-    for bad, good in _EMOJI_STRIP.items():
+    for bad, good in EMOJI_STRIP.items():
         s = s.replace(bad, good)
     if latin1:
         _LATIN1_MAP = {
@@ -42,3 +42,11 @@ def _safe(text: object, *, latin1: bool = False) -> str:
             s = s.replace(bad, good)
         s = s.encode("latin-1", "ignore").decode("latin-1")
     return s
+
+
+#: The module's public surface. Without this, `import *` re-exported
+#: everything this module imported — including `FPDF`.
+__all__ = [
+    "EMOJI_STRIP",
+    "sanitise",
+]

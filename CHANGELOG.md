@@ -1,29 +1,82 @@
 # Changelog
 
 Notable changes to `reportkit`. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
-versioning is [semver](https://semver.org/), with the caveat that **the API is not
-frozen until 1.0** — minor versions before then may move names, and each one says so.
+versioning is [semver](https://semver.org/). **The API is frozen at 1.0** — names
+will not move again without a major version.
 
-## [Unreleased] — towards 1.0
+## [1.0.0] — 2026-07-29
 
-1.0 is a **rename-and-freeze release**: no new behaviour, no moved pixels. Its
-deliverable is that the host application's 20-document byte fingerprint passes
-with no re-baseline, which proves the release changed names and nothing else.
+**The API is frozen.** Renames, deletions and signature changes only — no new
+behaviour, and no moved pixels. The deliverable is that the host application's
+20-document byte fingerprint passed with **no re-baseline**, which proves this
+release changed names and nothing else.
 
-Planned, with old → new in [Upgrading to 1.0](#upgrading-to-10) below:
+### Removed
 
-- The theme-author protocol loses its underscores: `_sf` → `sf`, `_safe` → `safe`,
-  `_eyebrow` → `eyebrow`, `_fit_font` → `fit_font`. These are not internals — a
-  theme draws through them, so a freeze must not lock them in as private.
-- `ReportDocument.start_section` (the 0.7 deprecation shim) is **deleted**. This
-  is what finally returns the name to `FPDF.start_section`.
-- `resolve_color(ref, pdf)` → `resolve_color(pdf, ref)`, matching every other
-  `pdf`-taking function in the package.
-- `ReportDocument.__init__` takes keyword-only arguments after `doc_ref`.
-- The underscore aliases added in 0.7 (`_table_room`, `_TBL_*`, `_PAGE_CAP`,
-  `_HEAD_ROOM`, `_SPLIT_ROOM`) are removed.
-- Every module gets an `__all__`, so `from reportkit.x import *` stops
-  re-exporting `FPDF` and friends.
+- **`ReportDocument.start_section`.** The 0.7 deprecation shim is gone, and the
+  name belongs to `FPDF.start_section` again — which is what builds the outline
+  and what `write_html()` calls for `<h1>`..`<h6>`. `ReportDocument.start_section
+  is FPDF.start_section` is now asserted by a test.
+  **Use `open_section(text, min_room, level)`.**
+  A missed call site does NOT raise: it resolves to the inherited method,
+  registers a level-0 bookmark and draws no heading. Grep for the bare name.
+- The 0.7 underscore aliases: `_table_room`, `_TBL_ROW_H`, `_TBL_HEAD_H`,
+  `_TBL_PAD`, `_PAGE_CAP`, `_HEAD_ROOM`, `_SPLIT_ROOM`.
+- `reportkit.text._safe` (now `sanitise`) and `_EMOJI_STRIP` (now `EMOJI_STRIP`).
+
+### Changed — renames
+
+The theme-author protocol loses its underscores. A theme draws THROUGH these,
+so freezing them as private would have been the wrong contract to lock in:
+
+| was | is |
+| --- | --- |
+| `doc._sf` | `doc.sf` |
+| `doc._safe` | `doc.safe` |
+| `doc._eyebrow` | `doc.eyebrow` |
+| `doc._fit_font` | `doc.fit_font` |
+| `doc._head_claimed` | `doc.head_claimed` |
+| `doc._decorate_void`, `_decorate_void_photo` | `decorate_void`, `decorate_void_photo` |
+| `doc.full_bleed_page` | `doc.full_bleed` |
+| `doc.cover_logo()`, `cover_sigil()`, `cover_left_photo()` | `draw_cover_logo()`, `draw_sigil()`, `draw_left_photo()` |
+| `spec.render` | `spec.render_spec` |
+| `images._cover_crop` | `images.cover_crop_uncached` |
+
+The cover verbs mattered because `cover_logo()` sat beside the DATA attribute
+`cover_logo_bytes` that `apply_brand` writes — a verb and a noun one character
+apart.
+
+### Changed — signatures
+
+- **`resolve_color(pdf, ref)`** — was `(ref, pdf)`. Every other pdf-taking
+  function in the package puts `pdf` first, and argument order is precisely
+  what a freeze locks in. 33 call sites; three needed hand-swapping because the
+  first argument was a conditional expression.
+- **`ReportDocument.__init__` is keyword-only after `doc_ref`.** It took 17
+  positional parameters with `brand` last, while `brand` overwrites seven of the
+  others. This is what buys the freedom to deprecate those seven later.
+- `firm_name` defaults to `""`, not a host's firm name.
+- **`labels` miss sentinel is `None`, and only `None`.** `t()` also used to
+  treat "the table returned the key itself" as a miss, so a host whose
+  vocabulary legitimately maps `figure_word` to `"figure_word"` silently got
+  reportkit's word instead of its own.
+
+### Added
+
+- `install_figure_hook` / `reset_figure_hook` / `figure_hook` — the supported
+  way to reach `charts.FIG_HOOK`, whose **identity** is the contract. A host
+  aliasing the ContextVar and `.set()`-ing through the alias depends on there
+  being exactly one object; binding a second silently disables interception,
+  which in the host that shipped this meant a real headless Chrome in CI.
+- **Every module has an `__all__`.** `from reportkit.document import *` used to
+  re-export `FPDF`, `build_tokens`, `resolve_theme` and `_safe`.
+
+### Fixed
+
+- `__version__` falls back to `0.0.0+unknown`, which compares lower than any
+  release. It was `0.0.0+source` — returned from exactly the install shape the
+  host uses (`git+…@tag`), so a consumer gating on `__version__ >= "1.0"` got a
+  false negative and silently took the 0.x branch.
 
 ## [0.7.0] — 2026-07-29
 

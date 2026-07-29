@@ -92,15 +92,15 @@ def test_pinned_panel_and_sidebar_win_over_the_derivation():
 
 @pytest.mark.parametrize("spec", ["#a3c83f", "#A3C83F"])
 def test_resolve_color_accepts_hex(spec):
-    assert resolve_color(spec, FakeDoc()) == LIME
+    assert resolve_color(FakeDoc(), spec) == LIME
 
 
 def test_resolve_color_reads_brand_tokens_by_name():
     doc = FakeDoc()
-    assert resolve_color("primary", doc) == NAVY
-    assert resolve_color("accent", doc) == TEAL
-    assert resolve_color("section_rule", doc) == LIME
-    assert resolve_color("white", doc) == (255, 255, 255)
+    assert resolve_color(doc, "primary") == NAVY
+    assert resolve_color(doc, "accent") == TEAL
+    assert resolve_color(doc, "section_rule") == LIME
+    assert resolve_color(doc, "white") == (255, 255, 255)
 
 
 def test_hex_requires_the_leading_hash():
@@ -108,7 +108,7 @@ def test_hex_requires_the_leading_hash():
     NOT parsed as a colour — it is treated as an unknown token name and resolves
     to the ink fallback. Worth knowing when hand-authoring a theme spec."""
     doc = FakeDoc()
-    assert resolve_color("a3c83f", doc) == doc.ink
+    assert resolve_color(doc, "a3c83f") == doc.ink
 
 
 def test_malformed_colour_does_not_abort_the_document():
@@ -116,7 +116,7 @@ def test_malformed_colour_does_not_abort_the_document():
     whole render. A bad colour must degrade to something drawable."""
     doc = FakeDoc()
     for bad in ("#zz", "", "#", "#12345"):
-        got = resolve_color(bad, doc)
+        got = resolve_color(doc, bad)
         assert isinstance(got, tuple) and len(got) == 3, (bad, got)
         assert all(isinstance(v, int) and 0 <= v <= 255 for v in got), (bad, got)
 

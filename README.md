@@ -8,7 +8,7 @@ It grew out of a structured-note analytics app whose report generator was worth
 more than the app it lived in. This is that generator with the finance taken out.
 
 ```bash
-pip install "reportkit @ git+https://github.com/diegogomezpy/report_maker@v0.7.0"
+pip install "reportkit @ git+https://github.com/diegogomezpy/report_maker@v1.0.0"
 ```
 
 ## Hello, report
@@ -120,15 +120,12 @@ failing somewhere inside the PDF engine.
 
 ## Status
 
-`0.7.0` — extracted from a working production report generator, which still
-uses it. The API is young and will move before `1.0`.
+`1.0.0` — extracted from a working production report generator, which still
+uses it. **The API is frozen**: names will not move again without a major
+version. See [CHANGELOG.md](CHANGELOG.md) for the 0.7 → 1.0 migration table.
 
 Known gaps, so you can judge fit:
 
-- **The API is not frozen.** Names still move between minor versions; `1.0` is
-  the rename-and-freeze release. See [CHANGELOG.md](CHANGELOG.md) for the
-  planned old → new table, and note the 0.7 deprecation shim on
-  `ReportDocument.start_section`.
 - **Two diagnostic channels, and you must choose where they go.** `logging` for
   operational events (silent behind a `NullHandler` until you attach one) and
   `Brand.warnings` for config validation. `logging` writes to stderr by default;
@@ -152,14 +149,14 @@ rely on — everything else on the document is an implementation detail:
 | | |
 | --- | --- |
 | `pdf.t(key)` | a chrome label in the document's language |
-| `pdf._safe(text)` | sanitise for the PDF text layer *(becomes `safe` at 1.0)* |
-| `pdf._sf(size, weight)` | set font by semantic weight *(becomes `sf`)* |
-| `pdf._fit_font(...)` | shrink a size until the text fits *(becomes `fit_font`)* |
-| `pdf._eyebrow(...)` | the small tracked-out label *(becomes `eyebrow`)* |
+| `pdf.safe(text)` | sanitise for the PDF text layer |
+| `pdf.sf(size, weight)` | set font by semantic weight |
+| `pdf.fit_font(...)` | shrink a size until the text fits |
+| `pdf.eyebrow(...)` | the small tracked-out label |
 | `pdf.ink` / `lime` / `teal` / `amber` / `panel` / `muted` / `body_ink` / `rule_soft` | palette-derived tokens |
 | `pdf.primary_color` / `accent_color` / `section_rule_color` | the brand palette |
 
-The underscores are historical and go away at 1.0; the set does not.
+Frozen at 1.0: these names will not move again without a major version.
 
 ## Licence
 

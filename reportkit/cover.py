@@ -71,7 +71,7 @@ def paint_background(pdf, w: float, h: float) -> None:
             paint_shape(pdf, 0, 0, w, h, {"kind": "square"}, fill)
             return
         if fill and fill.get("type") == "solid":
-            pdf.set_fill_color(*resolve_color(fill.get("color", "primary"), pdf))
+            pdf.set_fill_color(*resolve_color(pdf, fill.get("color", "primary")))
             pdf.rect(0, 0, w, h, style="F")
             return
     except Exception:
@@ -108,7 +108,7 @@ def paint_overlay(pdf, w: float, h: float) -> None:
             pass
     if isinstance(fill, dict) and fill.get("type") == "solid":
         try:
-            pdf.set_fill_color(*resolve_color(fill.get("color", "primary"), pdf))
+            pdf.set_fill_color(*resolve_color(pdf, fill.get("color", "primary")))
         except Exception:
             pdf.set_fill_color(*_overlay_color(pdf))
     else:
@@ -273,3 +273,18 @@ def full_bleed(pdf, image: bytes | None = None):
         yield w, h
     finally:
         pdf._is_cover = False
+
+
+#: The module's public surface. Without this, `import *` re-exported
+#: everything this module imported — including `FPDF`.
+__all__ = [
+    "MINT",
+    "cover_fill",
+    "draw_cover_logo",
+    "draw_logo_fit",
+    "draw_sigil",
+    "full_bleed",
+    "left_photo",
+    "paint_background",
+    "paint_overlay",
+]

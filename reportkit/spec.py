@@ -142,7 +142,7 @@ BLOCKS = {
 }
 
 
-def render(spec: dict, blocks: dict | None = None) -> bytes:
+def render_spec(spec: dict, blocks: dict | None = None) -> bytes:
     """Render a document spec to PDF bytes.
 
     `blocks` adds or overrides block renderers, each a `(doc, value, path)`
@@ -190,3 +190,12 @@ def render(spec: dict, blocks: dict | None = None) -> bytes:
             fn(doc, block[name], f"{bpath}.{name}")
 
     return bytes(doc.output())
+
+
+#: The module's public surface. Without this, `import *` re-exported
+#: everything this module imported — including `FPDF`.
+__all__ = [
+    "BLOCKS",
+    "SpecError",
+    "render_spec",
+]

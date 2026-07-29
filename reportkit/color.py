@@ -111,3 +111,17 @@ def remap_color(c, remap: dict, ramp_hue: float,
     if alpha is None:
         return f"rgb({tgt[0]},{tgt[1]},{tgt[2]})"
     return f"rgba({tgt[0]},{tgt[1]},{tgt[2]},{alpha})"
+
+
+#: The module's public surface. Without this, `import *` re-exported
+#: everything this module imported — including `FPDF`.
+__all__ = [
+    "BLUE_RAMP_WINDOW",
+    "DEFAULT_ACCENT",
+    "DEFAULT_PRIMARY",
+    "DEFAULT_SECONDARY",
+    "DEFAULT_SECTION_RULE",
+    "parse_rgb",
+    "remap_color",
+    "rgb_to_hue",
+]

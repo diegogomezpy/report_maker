@@ -43,7 +43,7 @@ def test_the_page_registers_itself_as_a_cover():
     that isn't in it gets a page number and a footer rule across its artwork."""
     d = doc()
     d.add_page()                                   # an ordinary content page
-    with d.full_bleed_page():
+    with d.full_bleed():
         assert d.page_no() in d._cover_pages
     assert d._cover_pages == {2}, "only the full-bleed page is a cover"
 
@@ -60,7 +60,7 @@ def test_is_cover_is_raised_before_add_page_and_lowered_after():
             return super().header()
 
     d = Probe(font_dir=FONTS)
-    with d.full_bleed_page():
+    with d.full_bleed():
         pass
     assert seen == [True], "header ran without _is_cover raised"
     assert d._is_cover is False, "the flag must not leak past the page"
@@ -69,21 +69,21 @@ def test_is_cover_is_raised_before_add_page_and_lowered_after():
 def test_the_flag_is_lowered_even_when_the_body_raises():
     d = doc()
     with pytest.raises(ValueError):
-        with d.full_bleed_page():
+        with d.full_bleed():
             raise ValueError("boom")
     assert d._is_cover is False
 
 
 def test_auto_page_break_is_off_so_content_cannot_spill():
     d = doc()
-    with d.full_bleed_page():
+    with d.full_bleed():
         assert d.auto_page_break is False
     assert d.page_no() == 1, "nothing may break off a full-bleed page"
 
 
 def test_it_yields_the_page_size():
     d = doc()
-    with d.full_bleed_page() as (w, h):
+    with d.full_bleed() as (w, h):
         assert (w, h) == (d.w, d.h)
 
 
@@ -99,7 +99,7 @@ def test_the_overlay_runs_even_when_the_photo_fails_to_draw():
     _orig = C.paint_overlay
     C.paint_overlay = lambda pdf, w, h: calls.append("overlay")
     try:
-        with d.full_bleed_page(image=b"not a png"):
+        with d.full_bleed(image=b"not a png"):
             pass
     finally:
         C.paint_overlay = _orig
@@ -114,7 +114,7 @@ def test_no_image_means_no_overlay():
     _orig = C.paint_overlay
     C.paint_overlay = lambda pdf, w, h: calls.append("overlay")
     try:
-        with d.full_bleed_page():
+        with d.full_bleed():
             pass
     finally:
         C.paint_overlay = _orig
@@ -188,7 +188,7 @@ def test_the_cover_logo_uses_its_own_aspect_not_the_header_logos():
     d.cover_logo_aspect = 6.0
     drawn = {}
     d.image = lambda b, x=0, y=0, w=0, h=0, **k: drawn.update(w=w, h=h)
-    d.cover_logo()
+    d.draw_cover_logo()
     assert drawn["w"] / drawn["h"] == pytest.approx(6.0)
 
 
@@ -199,7 +199,7 @@ def test_placement_percentages_are_of_the_page():
     d.cover_logo_x_pct, d.cover_logo_y_pct = 25.0, 50.0
     at = {}
     d.image = lambda b, x=0, y=0, w=0, h=0, **k: at.update(x=x, y=y)
-    d.cover_logo()
+    d.draw_cover_logo()
     assert at["x"] == pytest.approx(d.w * 0.25)
     assert at["y"] == pytest.approx(d.h * 0.50)
 
@@ -207,7 +207,7 @@ def test_placement_percentages_are_of_the_page():
 def test_no_sigil_is_not_an_error():
     d = doc()
     d.image = lambda *a, **k: pytest.fail("drew a sigil that does not exist")
-    d.cover_sigil()
+    d.draw_sigil()
 
 
 def test_the_sigil_bleeds_off_the_top_right_by_default():
@@ -216,7 +216,7 @@ def test_the_sigil_bleeds_off_the_top_right_by_default():
     d.cover_sigil_bytes = png(200, 200)
     at = {}
     d.image = lambda b, x=0, y=0, w=0, h=0, **k: at.update(x=x, y=y, w=w, h=h)
-    d.cover_sigil()
+    d.draw_sigil()
     assert at["y"] < 0, "should bleed off the top edge"
     assert at["x"] + at["w"] > d.w, "should bleed off the right edge"
 
@@ -254,10 +254,10 @@ def test_a_branded_cover_renders():
     }, default_firm_name="X")
     d = ReportDocument(brand=b, font_dir=FONTS)
     d.apply_brand(b, font_dir=FONTS)
-    with d.full_bleed_page(image=d.cover_image_bytes) as (w, h):
-        d.cover_sigil()
-        d.cover_logo()
-        d._eyebrow(d.l_margin, h * 0.5, "QUARTERLY REVIEW", d.section_rule_color)
+    with d.full_bleed(image=d.cover_image_bytes) as (w, h):
+        d.draw_sigil()
+        d.draw_cover_logo()
+        d.eyebrow(d.l_margin, h * 0.5, "QUARTERLY REVIEW", d.section_rule_color)
     d.add_page()
     d.section_title("Body")
     out = bytes(d.output())

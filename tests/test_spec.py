@@ -14,7 +14,7 @@ import pytest
 pytest.importorskip("fpdf")
 pypdfium2 = pytest.importorskip("pypdfium2")
 
-from reportkit.spec import BLOCKS, SpecError, render     # noqa: E402
+from reportkit.spec import BLOCKS, SpecError, render_spec  # noqa: E402
 
 
 def png(w=400, h=200) -> bytes:
@@ -31,7 +31,7 @@ def text_of(pdf: bytes) -> str:
 
 
 def test_a_minimal_spec_renders():
-    out = render({"sections": [{"title": "Performance", "blocks": [
+    out = render_spec({"sections": [{"title": "Performance", "blocks": [
         {"text": "The fund returned 8.4% net of fees."}]}]})
     assert out[:4] == b"%PDF"
     body = text_of(out)
@@ -39,7 +39,7 @@ def test_a_minimal_spec_renders():
 
 
 def test_every_block_type_draws():
-    out = render({
+    out = render_spec({
         "brand": {"firm_name": "Acme", "primary": "#0B3B2E", "theme": "mercator"},
         "sections": [{"title": "Everything", "blocks": [
             {"text": "Opening paragraph."},
@@ -71,14 +71,14 @@ def test_every_block_type_draws():
 ])
 def test_a_malformed_spec_names_the_path(bad, fragment):
     with pytest.raises(SpecError) as e:
-        render(bad)
+        render_spec(bad)
     assert fragment in str(e.value), str(e.value)
 
 
 def test_unknown_block_lists_what_is_known():
     """The error is the documentation most people will actually read."""
     with pytest.raises(SpecError) as e:
-        render({"sections": [{"blocks": [{"tabel": {}}]}]})
+        render_spec({"sections": [{"blocks": [{"tabel": {}}]}]})
     for name in ("table", "metrics", "figure"):
         assert name in str(e.value)
 
@@ -86,14 +86,14 @@ def test_unknown_block_lists_what_is_known():
 def test_numbers_and_none_survive_a_json_round_trip():
     """A spec that came from JSON or a spreadsheet has ints and nulls in its
     rows; coercing them is the layer's job, not the caller's."""
-    out = render({"sections": [{"blocks": [
+    out = render_spec({"sections": [{"blocks": [
         {"table": {"headers": ["Year", "Return"], "rows": [[2024, 0.084], [2025, None]]}}]}]})
     assert "2024" in text_of(out)
 
 
 def test_base64_figure_is_decoded():
     import base64
-    out = render({"sections": [{"blocks": [
+    out = render_spec({"sections": [{"blocks": [
         {"figure": {"png": base64.b64encode(png()).decode(), "caption": "Chart"}}]}]})
     assert "Chart" in text_of(out)
 
@@ -107,7 +107,7 @@ def test_custom_block_escape_hatch():
         seen["value"] = value
         doc.body(f"gauge at {value['level']}")
 
-    out = render({"sections": [{"blocks": [{"gauge": {"level": "72%"}}]}]},
+    out = render_spec({"sections": [{"blocks": [{"gauge": {"level": "72%"}}]}]},
                  blocks={"gauge": draw_gauge})
     assert seen["value"] == {"level": "72%"}
     assert "gauge at 72%" in text_of(out)
@@ -117,7 +117,7 @@ def test_custom_can_shadow_a_builtin():
     def loud_text(doc, value, path):
         doc.body(str(value).upper())
 
-    out = render({"sections": [{"blocks": [{"text": "quiet"}]}]},
+    out = render_spec({"sections": [{"blocks": [{"text": "quiet"}]}]},
                  blocks={"text": loud_text})
     assert "QUIET" in text_of(out)
     assert BLOCKS["text"] is not loud_text, "the registry must not be mutated"
@@ -126,11 +126,11 @@ def test_custom_can_shadow_a_builtin():
 def test_bad_brand_colour_does_not_abort_the_document():
     """Brand config is user input. A typo in a hex code must not lose the
     report."""
-    out = render({"brand": {"primary": "#zzz", "accent": "nonsense"},
+    out = render_spec({"brand": {"primary": "#zzz", "accent": "nonsense"},
                   "sections": [{"blocks": [{"text": "still here"}]}]})
     assert "still here" in text_of(out)
 
 
 def test_empty_spec_is_a_valid_empty_document():
-    out = render({})
+    out = render_spec({})
     assert out[:4] == b"%PDF"

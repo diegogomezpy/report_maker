@@ -44,7 +44,7 @@ from dataclasses import dataclass
 from fpdf.drawing import DeviceRGB
 from fpdf.pattern import LinearGradient, RadialGradient
 
-from reportkit.images import _cover_crop
+from reportkit.images import cover_crop_uncached
 
 
 _log = logging.getLogger(__name__)
@@ -379,11 +379,11 @@ class ReportTheme:
         pdf.set_line_width(0.2)
         pdf.line(pdf.l_margin, pdf.h - 22, pdf.w - pdf.r_margin, pdf.h - 22)
         pdf.set_y(-20)
-        pdf._sf(6, "light")
+        pdf.sf(6, "light")
         pdf.set_text_color(*pdf.footnote_grey)
         pdf.multi_cell(0, 2.9, pdf.footer_note or pdf.t("footer_line"), align="L")
         pdf.set_y(-11)
-        pdf._sf(6.5, "light")
+        pdf.sf(6.5, "light")
         pdf.set_text_color(*pdf.footnote_grey)
         _page = pdf.t("page_of")
         _mid  = pdf.t("page_of_mid")
@@ -393,14 +393,14 @@ class ReportTheme:
     def eyebrow(self, pdf, x, y, text, color, size=7.0, tracking=0.4,
                 w=0.0, align="L") -> None:
         """A tracked uppercase label — the design's 'eyebrow' / kicker."""
-        pdf._sf(size, "body_bold")
+        pdf.sf(size, "body_bold")
         pdf.set_text_color(*color)
         try:
             pdf.set_char_spacing(tracking)
         except Exception:
             pass
         pdf.set_xy(x, y)
-        pdf.cell(w, size * 0.55, pdf._safe(str(text).upper()), align=align)
+        pdf.cell(w, size * 0.55, pdf.safe(str(text).upper()), align=align)
         try:
             pdf.set_char_spacing(0)
         except Exception:
@@ -411,7 +411,7 @@ class ReportTheme:
         if pdf.get_y() > pdf.h - pdf.b_margin - min_room:
             pdf.add_page()
         pdf.ln(2)
-        pdf._sf(9, "semibold")
+        pdf.sf(9, "semibold")
         pdf.set_text_color(*TEXT)
         pdf.cell(0, 6, text.upper(), new_x="LMARGIN", new_y="NEXT")
         pdf.set_text_color(*TEXT)
@@ -429,7 +429,7 @@ class ReportTheme:
             by = floor - band_h                  # anchored at the floor
             _bx = (-0.6, 0.0, 0.6)[pdf.page_no() % 3]
             _by = (0.0, -0.5, 0.5)[(pdf.page_no() // 3) % 3]
-            cropped = _cover_crop(filler, band_w / band_h, bias_x=_bx, bias_y=_by) or filler
+            cropped = cover_crop_uncached(filler, band_w / band_h, bias_x=_bx, bias_y=_by) or filler
             try:
                 from PIL import Image
                 _bim = Image.open(io.BytesIO(cropped)).convert("RGB")
@@ -540,7 +540,10 @@ def readable_on(fg, bg, fallback, min_delta: float = 0.22) -> tuple:
         return fallback
 
 
-def resolve_color(ref, pdf) -> tuple:
+def resolve_color(pdf, ref) -> tuple:
+    # `pdf` first, like every other pdf-taking function in the package. The old
+    # order was `(ref, pdf)`; argument order is precisely what a freeze locks
+    # in, so it is corrected here or never.
     """Resolve a spec colour reference against a document's palette tokens."""
     if ref is None:
         return pdf.ink
@@ -558,9 +561,9 @@ def resolve_color(ref, pdf) -> tuple:
             return _parse_hex(ref["hex"])
         if "mix" in ref:
             a, b, f = ref["mix"]
-            return blend(resolve_color(a, pdf), resolve_color(b, pdf), float(f))
+            return blend(resolve_color(pdf, a), resolve_color(pdf, b), float(f))
         if "token" in ref:
-            return resolve_color(ref["token"], pdf)
+            return resolve_color(pdf, ref["token"])
     return pdf.ink
 
 
@@ -598,7 +601,7 @@ def paint_shape(pdf, x, y, w, h, shape, fill, opacity: float = 1.0) -> None:
     fill = fill or {"type": "solid", "color": "ink"}
     ftype = fill.get("type", "solid")
     if ftype == "solid":
-        rgb = resolve_color(fill.get("color", "ink"), pdf)
+        rgb = resolve_color(pdf, fill.get("color", "ink"))
         if kind == "chamfer":
             _fill_chamfer(pdf, x, y, w, h, rgb,
                           c=geom.get("c"), q=geom.get("q"), r=geom.get("r"),
@@ -621,7 +624,7 @@ def paint_shape(pdf, x, y, w, h, shape, fill, opacity: float = 1.0) -> None:
         return
     # gradient
     stops = fill.get("stops") or []
-    colors = [_hexstr(resolve_color(s.get("color") if isinstance(s, dict) else s, pdf))
+    colors = [_hexstr(resolve_color(pdf, s.get("color") if isinstance(s, dict) else s))
               for s in stops]
     if not colors:
         colors = [_hexstr(pdf.ink), _hexstr(pdf.ink)]
@@ -683,20 +686,20 @@ class SpecTheme(ReportTheme):
                 pdf.image(io.BytesIO(pdf.firm_logo_bytes), x=pdf.l_margin, y=8, w=w, h=h)
             except Exception:
                 pass
-        pdf._sf(7, "regular")
+        pdf.sf(7, "regular")
         pdf.set_text_color(*pdf.muted)
         pdf.set_xy(pdf.w - pdf.r_margin - 95, 8.75)
-        note_label = pdf._safe(pdf.doc_ref.split("|")[-1].strip() if "|" in pdf.doc_ref else pdf.doc_ref)
+        note_label = pdf.safe(pdf.doc_ref.split("|")[-1].strip() if "|" in pdf.doc_ref else pdf.doc_ref)
         pdf.cell(95, 4.5, note_label, align="R")
         hd = self._s("header")
         rule = hd.get("rule", {"color": "primary", "weight": 0.6, "y": 16.5})
         ry = rule.get("y", 16.5)
-        pdf.set_draw_color(*resolve_color(rule.get("color", "primary"), pdf))
+        pdf.set_draw_color(*resolve_color(pdf, rule.get("color", "primary")))
         pdf.set_line_width(rule.get("weight", 0.6))
         pdf.line(pdf.l_margin, ry, pdf.w - pdf.r_margin, ry)
         tick = hd.get("tick")
         if tick:
-            pdf.set_fill_color(*resolve_color(tick.get("color", "lime"), pdf))
+            pdf.set_fill_color(*resolve_color(pdf, tick.get("color", "lime")))
             pdf.rect(pdf.l_margin, tick.get("y", 16.1), tick.get("w", 15), tick.get("h", 0.8),
                      style="F", round_corners=True, corner_radius=tick.get("radius", 0.4))
         pdf.set_text_color(*TEXT)
@@ -711,11 +714,11 @@ class SpecTheme(ReportTheme):
         if st.get("mode") == "tabAbove":
             y0 = pdf.get_y()
             tab = st.get("tab", {"color": "lime", "w": 9, "h": 1.0, "radius": 0.5})
-            pdf.set_fill_color(*resolve_color(tab.get("color", "lime"), pdf))
+            pdf.set_fill_color(*resolve_color(pdf, tab.get("color", "lime")))
             pdf.rect(pdf.l_margin, y0, tab.get("w", 9), tab.get("h", 1.0),
                      style="F", round_corners=True, corner_radius=tab.get("radius", 0.5))
             pdf.set_y(y0 + 2.4)
-        pdf._sf(13, "bold")
+        pdf.sf(13, "bold")
         pdf.set_text_color(*pdf.ink)
         pdf.cell(0, 8, text, new_x="LMARGIN", new_y="NEXT")
         band_w = pdf.w - pdf.l_margin - pdf.r_margin
@@ -724,7 +727,7 @@ class SpecTheme(ReportTheme):
         pdf.rect(pdf.l_margin, y + 0.4, band_w, st.get("rule_weight", 0.4), style="F")
         if st.get("mode") != "tabAbove":
             kl = st.get("keyline", {"color": "lime", "w": 22, "h": 1.2})
-            pdf.set_fill_color(*resolve_color(kl.get("color", "lime"), pdf))
+            pdf.set_fill_color(*resolve_color(pdf, kl.get("color", "lime")))
             pdf.rect(pdf.l_margin, y, kl.get("w", 22), kl.get("h", 1.2), style="F")
         pdf.ln(5)
         pdf.set_text_color(*TEXT)
@@ -746,12 +749,12 @@ class SpecTheme(ReportTheme):
         chip_sz = chip.get("size", 12.0)
         paint_shape(pdf, x0, y0, chip_sz, chip_sz, chip.get("shape"), chip.get("fill"))
         pdf.set_xy(x0, y0 + 2.6)
-        pdf._sf(11, "bold")
-        pdf.set_text_color(*resolve_color(chip.get("number_color", "ink"), pdf))
+        pdf.sf(11, "bold")
+        pdf.set_text_color(*resolve_color(pdf, chip.get("number_color", "ink")))
         pdf.cell(chip_sz, 7, number, align="C")
         tx = x0 + chip_sz + 5
         tw = w - chip_sz - 5
-        self.eyebrow(pdf, tx, y0 + 0.5, kicker, resolve_color(sh.get("kicker_color", "primary"), pdf),
+        self.eyebrow(pdf, tx, y0 + 0.5, kicker, resolve_color(pdf, sh.get("kicker_color", "primary")),
                      size=7.0, tracking=0.5, w=tw)
         if badge_logo:
             try:
@@ -763,21 +766,21 @@ class SpecTheme(ReportTheme):
                 badge_logo = None
         if badge:
             bc = badge_color or pdf.primary_color
-            pdf._sf(8, "bold")
-            bw = pdf.get_string_width(pdf._safe(badge)) + 5
+            pdf.sf(8, "bold")
+            bw = pdf.get_string_width(pdf.safe(badge)) + 5
             pdf.set_fill_color(*bc)
             pdf.rect(x0 + w - bw, y0 + 4.5, bw, 6.5, style="F",
                      round_corners=True, corner_radius=1.4)
             pdf.set_xy(x0 + w - bw, y0 + 5.0)
             pdf.set_text_color(*WHITE)
-            pdf.cell(bw, 5.5, pdf._safe(badge), align="C")
+            pdf.cell(bw, 5.5, pdf.safe(badge), align="C")
             tw -= bw + 3
         pdf.set_xy(tx, y0 + 4.8)
-        pdf._fit_font(pdf._safe(title), tw, 15, "bold")
-        pdf.set_text_color(*resolve_color(sh.get("title_color", "ink"), pdf))
-        pdf.cell(tw, 7, pdf._safe(title))
+        pdf.fit_font(pdf.safe(title), tw, 15, "bold")
+        pdf.set_text_color(*resolve_color(pdf, sh.get("title_color", "ink")))
+        pdf.cell(tw, 7, pdf.safe(title))
         ry = y0 + chip_sz + 2
-        pdf.set_fill_color(*resolve_color(sh.get("rule_color", "rule_soft"), pdf))
+        pdf.set_fill_color(*resolve_color(pdf, sh.get("rule_color", "rule_soft")))
         pdf.rect(x0, ry, w, sh.get("rule_weight", 0.4), style="F")
         pdf.set_y(ry + 4)
         pdf.set_text_color(*TEXT)
@@ -800,24 +803,24 @@ class SpecTheme(ReportTheme):
             # `heading_color: white` with it and the chapter title disappears,
             # so every colour here is checked against the page before it is used.
             pdf.set_xy(x0, y0 + 2)
-            pdf._sf(num.get("size", 34), "bold")
-            pdf.set_text_color(*readable_on(resolve_color(num.get("color"), pdf),
+            pdf.sf(num.get("size", 34), "bold")
+            pdf.set_text_color(*readable_on(resolve_color(pdf, num.get("color")),
                                             WHITE, blend(pdf.ink, WHITE, 0.55)))
             pdf.cell(26, 20, str(number), align="L")
             tx = x0 + 30
             self.eyebrow(pdf, tx, y0 + 4.5, kicker,
-                         readable_on(resolve_color(dv.get("kicker_color", "lime"), pdf),
+                         readable_on(resolve_color(pdf, dv.get("kicker_color", "lime")),
                                      WHITE, pdf.primary_color),
                          size=7.5, tracking=0.6, w=w - 30)
             pdf.set_xy(tx, y0 + 9.5)
-            pdf._sf(dv.get("heading_size", 17), "bold")
-            pdf.set_text_color(*readable_on(resolve_color(dv.get("heading_color", "ink"), pdf),
+            pdf.sf(dv.get("heading_size", 17), "bold")
+            pdf.set_text_color(*readable_on(resolve_color(pdf, dv.get("heading_color", "ink")),
                                             WHITE, pdf.ink))
-            pdf.cell(w - 30, 9, pdf._safe(heading))
+            pdf.cell(w - 30, 9, pdf.safe(heading))
             ry = y0 + H - 2
-            pdf.set_fill_color(*resolve_color(dv.get("rule_color", "rule_soft"), pdf))
+            pdf.set_fill_color(*resolve_color(pdf, dv.get("rule_color", "rule_soft")))
             pdf.rect(x0, ry, w, 0.4, style="F")
-            pdf.set_fill_color(*resolve_color(dv.get("tick_color", "lime"), pdf))
+            pdf.set_fill_color(*resolve_color(pdf, dv.get("tick_color", "lime")))
             pdf.rect(x0, ry - 0.1, 26, 0.9, style="F", round_corners=True, corner_radius=0.4)
             pdf.set_y(y0 + H + 6)
             pdf.set_text_color(*TEXT)
@@ -830,10 +833,10 @@ class SpecTheme(ReportTheme):
         # Text here sits on the band, so contrast is checked against the band's
         # own colour (a gradient is judged on its first stop — close enough to
         # catch "invisible", which is all this guard is for).
-        _band = resolve_color(_fill.get("color") if isinstance(_fill, dict) else _fill, pdf)
+        _band = resolve_color(pdf, _fill.get("color") if isinstance(_fill, dict) else _fill)
         if isinstance(_fill, dict) and _fill.get("stops"):
             try:
-                _band = resolve_color(_fill["stops"][0].get("color"), pdf)
+                _band = resolve_color(pdf, _fill["stops"][0].get("color"))
             except Exception:
                 pass
         try:
@@ -845,21 +848,21 @@ class SpecTheme(ReportTheme):
                        if dv.get("watermark") == "hexCluster" else None)
         num = dv.get("number", {"size": 26, "color": "lime", "x": 9})
         pdf.set_xy(x0 + num.get("x", 9), y0 + 9)
-        pdf._sf(num.get("size", 26), "bold")
-        pdf.set_text_color(*readable_on(resolve_color(num.get("color", "lime"), pdf),
+        pdf.sf(num.get("size", 26), "bold")
+        pdf.set_text_color(*readable_on(resolve_color(pdf, num.get("color", "lime")),
                                         _band, WHITE))
         pdf.cell(20, 12, str(number), align="L")
         if dv.get("vline"):
-            pdf.set_fill_color(*resolve_color(dv.get("vline_color", {"mix": ["ink", "white", 0.30]}), pdf))
+            pdf.set_fill_color(*resolve_color(pdf, dv.get("vline_color", {"mix": ["ink", "white", 0.30]})))
             pdf.rect(x0 + 31, y0 + 7, 0.5, H - 14, style="F")
         self.eyebrow(pdf, x0 + 37, y0 + 7.5, kicker,
-                     readable_on(resolve_color(dv.get("kicker_color", "lime"), pdf), _band, WHITE),
+                     readable_on(resolve_color(pdf, dv.get("kicker_color", "lime")), _band, WHITE),
                      size=7.0, tracking=0.6, w=w - 50)
         pdf.set_xy(x0 + 37, y0 + 12.5)
-        pdf._sf(dv.get("heading_size", 16), "bold")
-        pdf.set_text_color(*readable_on(resolve_color(dv.get("heading_color", "white"), pdf),
+        pdf.sf(dv.get("heading_size", 16), "bold")
+        pdf.set_text_color(*readable_on(resolve_color(pdf, dv.get("heading_color", "white")),
                                         _band, WHITE))
-        pdf.cell(w - 50, 9, pdf._safe(heading))
+        pdf.cell(w - 50, 9, pdf.safe(heading))
         pdf.set_y(y0 + H + 6)
         pdf.set_text_color(*TEXT)
 
@@ -958,7 +961,7 @@ class SpecTheme(ReportTheme):
             by = floor - band_h
             _bx = (-0.6, 0.0, 0.6)[pdf.page_no() % 3]
             _by = (0.0, -0.5, 0.5)[(pdf.page_no() // 3) % 3]
-            cropped = _cover_crop(filler, band_w / band_h, bias_x=_bx, bias_y=_by) or filler
+            cropped = cover_crop_uncached(filler, band_w / band_h, bias_x=_bx, bias_y=_by) or filler
             try:
                 from PIL import Image
                 _bim = Image.open(io.BytesIO(cropped)).convert("RGB")
@@ -1124,3 +1127,38 @@ def resolve_theme(name_or_spec) -> ReportTheme:
 
 def known_themes() -> list[str]:
     return sorted(_BUILTIN_SPECS)
+
+
+#: The module's public surface. Without this, `import *` re-exported
+#: everything this module imported — including `FPDF`.
+__all__ = [
+    "AMBER",
+    "AMBER_DARK",
+    "BLACK",
+    "BODY_INK",
+    "DEFAULT_THEME",
+    "FOOTNOTE_GREY",
+    "HEXAGON_SPEC",
+    "MERCATOR_SPEC",
+    "MUTED",
+    "ROW_ALT",
+    "RULE_SOFT",
+    "ReportTheme",
+    "SpecTheme",
+    "TEXT",
+    "TEXT_SOFT",
+    "ThemeTokens",
+    "WHITE",
+    "WM_DEFAULTS",
+    "WM_SURFACES",
+    "blend",
+    "build_tokens",
+    "builtin_spec",
+    "known_themes",
+    "paint_shape",
+    "readable_on",
+    "register_theme",
+    "resolve_color",
+    "resolve_theme",
+    "resolve_watermark",
+]

@@ -44,8 +44,11 @@ from __future__ import annotations
 try:                                    # installed (wheel / editable)
     from importlib.metadata import version as _dist_version
     __version__ = _dist_version("reportkit")
-except Exception:                       # running from a source checkout
-    __version__ = "0.0.0+source"
+except Exception:                       # a source checkout with no metadata
+    # Deliberately a version that compares LOWER than any release rather than a
+    # plausible-looking one: a consumer gating on `__version__ >= "1.0"` should
+    # fail closed here, not silently take the 0.x branch on a real install.
+    __version__ = "0.0.0+unknown"
 
 # A library must not configure logging for its host, but it must not print to
 # stdout either. NullHandler means reportkit is silent until a host opts in
@@ -82,8 +85,8 @@ from reportkit.document import (  # noqa: F401
     TBL_ROW_H, TBL_HEAD_H, TBL_PAD, PAGE_CAP, HEAD_ROOM, SPLIT_ROOM,
     SECTION_ROOM,
 )
-from reportkit.text import _safe as sanitise  # noqa: F401
-from reportkit.spec import render as render_spec, SpecError  # noqa: F401
+from reportkit.text import sanitise  # noqa: F401
+from reportkit.spec import render_spec, SpecError  # noqa: F401
 from reportkit.branding import (  # noqa: F401
     APPLIED_ATTRS, Brand, ImageRoles, assign_images, decode_slots,
     load_logo, resolve as resolve_brand, resolve_palette, validate_branding,

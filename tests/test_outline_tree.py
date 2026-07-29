@@ -111,16 +111,22 @@ def test_the_outline_can_be_switched_off():
     assert tree(d) == []
 
 
-def test_start_section_still_works_but_warns():
-    """It shadowed `FPDF.start_section` — the method fpdf2 uses to BUILD the
-    outline. The shim keeps a 0.6 consumer working for one release."""
+def test_start_section_is_fpdf2s_again():
+    """The whole point of the rename. `FPDF.start_section` must now be reachable
+    and behave as fpdf2 documents it — build an outline entry, draw nothing.
+
+    A missed call site does NOT raise: it resolves to the inherited method and
+    silently registers a level-0 bookmark with no heading. Only a pixel golden
+    catches that, which is why the repo-wide grep is part of the release.
+    """
+    from fpdf import FPDF
     d = doc()
-    with pytest.deprecated_call():
-        d.start_section("Legacy")
-    assert tree(d) == [(0, "Legacy")]
+    assert ReportDocument.start_section is FPDF.start_section
+    d.start_section("Raw fpdf entry", level=0)
+    assert tree(d) == [(0, "Raw fpdf entry")]
 
 
-def test_open_section_is_the_new_name_and_does_not_warn(recwarn):
+def test_open_section_is_the_pagination_helper(recwarn):
     d = doc()
     d.open_section("Modern")
     assert tree(d) == [(0, "Modern")]
