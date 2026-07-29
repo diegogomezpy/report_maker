@@ -116,6 +116,16 @@ def table_room(n_rows: int, row_h: float = TBL_ROW_H, head_h: float = TBL_HEAD_H
 
 # Deprecated aliases, kept for one release so a consumer pinned to 0.6 keeps
 # working. Removed at 1.0 — see CHANGELOG "Upgrading to 1.0".
+def chrome_labels() -> dict:
+    """A COPY of reportkit's own chrome copy, for a host building a label table.
+
+    `CHROME_LABELS` is a module global; handing it out is handing out the
+    package's fallbacks by reference.
+    """
+    import copy as _copy
+    return _copy.deepcopy(CHROME_LABELS)
+
+
 _TBL_ROW_H, _TBL_HEAD_H, _TBL_PAD = TBL_ROW_H, TBL_HEAD_H, TBL_PAD
 _PAGE_CAP, _HEAD_ROOM, _SPLIT_ROOM = PAGE_CAP, HEAD_ROOM, SPLIT_ROOM
 _table_room = table_room

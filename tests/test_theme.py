@@ -126,3 +126,57 @@ def test_register_theme_adds_to_the_registry():
     register_theme("acme", spec)
     assert "acme" in known_themes()
     assert resolve_theme("acme").name == "acme"
+
+
+# ── shared mutable state ─────────────────────────────────────────────────────
+
+def test_a_resolved_theme_does_not_alias_the_registry():
+    """`resolve_theme("hexagon").spec` used to BE the module global, so
+    `t.spec[...] = x` was a process-wide edit visible to every later resolve —
+    and `hexagon` and `cadiem` map to the same object, so editing one silently
+    re-themed the other."""
+    from reportkit.theme import HEXAGON_SPEC, resolve_theme
+    t = resolve_theme("hexagon")
+    assert t.spec is not HEXAGON_SPEC
+    t.spec["probe"] = 99
+    t.spec.setdefault("header", {})["probe"] = 99
+    assert "probe" not in HEXAGON_SPEC
+    assert "probe" not in resolve_theme("cadiem").spec
+    assert "probe" not in (HEXAGON_SPEC.get("header") or {}), "nested dict aliased"
+
+
+def test_builtin_spec_hands_out_a_copy_to_build_on():
+    from reportkit.theme import HEXAGON_SPEC, builtin_spec
+    a, b = builtin_spec("hexagon"), builtin_spec("hexagon")
+    assert a == b and a is not b and a is not HEXAGON_SPEC
+    a["name"] = "mine"
+    assert HEXAGON_SPEC.get("name") != "mine"
+
+
+def test_registering_a_theme_copies_the_spec():
+    from reportkit.theme import known_themes, register_theme, resolve_theme
+    mine = {"name": "Probe"}
+    register_theme("probe-theme", mine)
+    mine["name"] = "edited after registering"
+    assert resolve_theme("probe-theme").spec["name"] == "Probe"
+    assert "probe-theme" in known_themes()
+
+
+def test_chrome_labels_are_handed_out_by_value():
+    from reportkit.document import CHROME_LABELS, chrome_labels
+    got = chrome_labels()
+    assert got == CHROME_LABELS and got is not CHROME_LABELS
+    got["figure_word"]["en"] = "Plate"
+    assert CHROME_LABELS["figure_word"]["en"] == "Figure"
+
+
+def test_image_roles_is_a_frozen_value():
+    """It is the OUTPUT of the slot algorithm; reassigning a role afterwards is
+    re-deciding the assignment where the algorithm cannot see it."""
+    import dataclasses
+    import pytest as _pytest
+    from reportkit.branding import ImageRoles
+    r = ImageRoles(b"cover", b"back", (b"filler",))
+    with _pytest.raises(dataclasses.FrozenInstanceError):
+        r.cover = b"other"
+    assert isinstance(r.fillers, tuple)

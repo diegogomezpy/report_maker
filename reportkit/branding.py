@@ -236,13 +236,18 @@ def load_logo(branding: dict | None, *, root=None, fetch=None) -> bytes | None:
 # what makes the branch table below testable at all.
 
 
+@dataclass(frozen=True)
 class ImageRoles:
-    """Which photo plays which part. `cover`/`back` may be None (deliberately)."""
+    """Which photo plays which part. `cover`/`back` may be None (deliberately).
 
-    __slots__ = ("cover", "back", "fillers")
+    Frozen, and `fillers` is a tuple: this is the OUTPUT of the slot algorithm,
+    and a caller that reassigned a role after the fact would be re-deciding the
+    assignment somewhere the algorithm cannot see.
+    """
 
-    def __init__(self, cover, back, fillers):
-        self.cover, self.back, self.fillers = cover, back, fillers
+    cover: bytes | None
+    back: bytes | None
+    fillers: tuple = ()
 
     def __repr__(self):                       # helpful in a failing assertion
         def n(b):
@@ -312,7 +317,7 @@ def assign_images(slots, *, cover=None, back=None) -> ImageRoles:
             if img and img not in seen:
                 seen.add(img)
                 fillers.append(img)
-    return ImageRoles(cover_img, back_img, fillers)
+    return ImageRoles(cover_img, back_img, tuple(fillers))
 
 
 def _decode_b64(value):
@@ -463,7 +468,7 @@ def resolve(cfg: dict | None, *, lang: str = "en", root=None, fetch=None,
         logo=logo,
         cover_logo=_decode_b64(cfg.get("cover_logo_base64")),
         cover_sigil=_decode_b64(cfg.get("cover_sigil_base64")),
-        cover_image=roles.cover, back_image=roles.back, fillers=tuple(roles.fillers),
+        cover_image=roles.cover, back_image=roles.back, fillers=roles.fillers,
         watermark_image=_decode_b64(wm_b64), raw=dict(cfg),
         overlay_color=(branding_color(cfg, "cover_overlay_color", None)
                        if cfg.get("cover_overlay_color") else None),

@@ -32,6 +32,8 @@ hermetic golden pixel-diff harness (scratchpad/golden.py) guards against drift.
 """
 from __future__ import annotations
 
+import copy
+
 import logging
 
 import io
@@ -657,7 +659,11 @@ class SpecTheme(ReportTheme):
     given HEXAGON_SPEC / MERCATOR_SPEC, and renders any brand-authored spec."""
 
     def __init__(self, spec: dict):
-        self.spec = spec or {}
+        # DEEP copy. `resolve_theme("hexagon")` used to hand back the module
+        # global itself, so `t.spec[...] = x` was a process-wide edit visible to
+        # every later resolve — and `hexagon` and `cadiem` are the same object,
+        # so editing one silently re-themed the other.
+        self.spec = copy.deepcopy(spec) if spec else {}
         self.name = self.spec.get("name", "custom")
 
     def _s(self, key, default=None):
@@ -1077,7 +1083,7 @@ _BUILTIN_SPECS: dict[str, dict] = {
 
 def _merge_spec(base: dict, over: dict) -> dict:
     """Deep-merge `over` onto a copy of `base` (dicts merge; other values replace)."""
-    out = dict(base)
+    out = copy.deepcopy(base)
     for k, v in (over or {}).items():
         if isinstance(v, dict) and isinstance(out.get(k), dict):
             out[k] = _merge_spec(out[k], v)
@@ -1087,8 +1093,22 @@ def _merge_spec(base: dict, over: dict) -> dict:
 
 
 def register_theme(name: str, spec: dict) -> None:
-    """Register a named built-in theme spec (so `resolve_theme(name)` finds it)."""
-    _BUILTIN_SPECS[name.strip().lower()] = spec
+    """Register a named built-in theme spec (so `resolve_theme(name)` finds it).
+
+    The spec is copied: a caller that keeps editing the dict it registered would
+    otherwise be editing the registry.
+    """
+    _BUILTIN_SPECS[name.strip().lower()] = copy.deepcopy(spec)
+
+
+def builtin_spec(name: str) -> dict:
+    """A COPY of a built-in theme spec, safe to edit as a base for your own.
+
+    Prefer this to importing `HEXAGON_SPEC` / `MERCATOR_SPEC` directly, which
+    hands out the registry's own object.
+    """
+    key = (name or "").strip().lower()
+    return copy.deepcopy(_BUILTIN_SPECS.get(key) or _BUILTIN_SPECS[DEFAULT_THEME])
 
 
 def resolve_theme(name_or_spec) -> ReportTheme:

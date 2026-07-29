@@ -59,13 +59,13 @@ def test_undecodable_entries_become_blanks_not_exceptions():
 def test_slot_zero_is_the_cover_and_slot_one_is_the_back():
     r = assign_images(slots(A, B, C))
     assert (r.cover, r.back) == (A, B)
-    assert r.fillers == [C], "cover/back must not reappear inside the report"
+    assert r.fillers == (C,), "cover/back must not reappear inside the report"
 
 
 def test_explicit_images_win_over_slots():
     r = assign_images(slots(A, B), cover=C, back=A)
     assert (r.cover, r.back) == (C, A)
-    assert r.fillers == [B]
+    assert r.fillers == (B,)
 
 
 def test_a_blank_cover_slot_is_honoured():
@@ -100,28 +100,28 @@ def test_the_explicit_cover_is_truthiness_tested_not_sentinel_tested():
 
 def test_fillers_exclude_whatever_cover_and_back_consumed():
     r = assign_images(slots(A, B, C, b"D"))
-    assert r.fillers == [C, b"D"]
+    assert r.fillers == (C, b"D")
 
 
 def test_fillers_fall_back_to_cover_and_back_when_nothing_is_left():
     """A two-photo brand still gets a filler band rather than an empty void."""
     r = assign_images(slots(A, B))
-    assert r.fillers == [A, B]
+    assert r.fillers == (A, B)
 
 
 def test_the_fallback_dedupes():
     r = assign_images(slots(A))
-    assert r.fillers == [A], "cover == back must not be listed twice"
+    assert r.fillers == (A,), "cover == back must not be listed twice"
 
 
 def test_blanks_never_reach_the_filler_pool():
     r = assign_images(slots(A, B, "", C))
-    assert None not in r.fillers and r.fillers == [C]
+    assert None not in r.fillers and r.fillers == (C,)
 
 
 def test_no_images_at_all_is_valid_and_empty():
     r = assign_images([])
-    assert (r.cover, r.back, r.fillers) == (None, None, [])
+    assert (r.cover, r.back, list(r.fillers)) == (None, None, [])
 
 
 # ── the whole table, as one grid ─────────────────────────────────────────────
@@ -144,7 +144,7 @@ def test_no_images_at_all_is_valid_and_empty():
 ])
 def test_branch_table(pool, cover, back, expect):
     r = assign_images(slots(*pool), cover=cover, back=back)
-    assert (r.cover, r.back, r.fillers) == expect
+    assert (r.cover, r.back, list(r.fillers)) == expect
 
 
 def test_image_roles_repr_is_readable_in_a_failure():
