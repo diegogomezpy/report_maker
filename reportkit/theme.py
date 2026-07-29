@@ -221,91 +221,6 @@ def _hex_cluster(pdf, x: float, y: float, scale: float,
                             line_w=max(0.25, s * 0.02), opacity=opacity)
 
 
-# ── watermark: ONE brand mark, ONE config, ONE gate ───────────────────────────
-# The watermark is a single faint brand decoration painted behind text on up to
-# four surfaces (masthead / divider / empty space / cover). It is either an
-# uploaded IMAGE (any brand) or the theme's own drawn hex cluster (e.g. CADIEM's
-# hexagons — never a generic option). ONE resolved config lives on the pdf as
-# `pdf.watermark` = {image, opacity, scale, anchor, surfaces:set}; every surface
-# reads the SAME values. There is no separate enable flag, no per-surface
-# appearance, and no second gate — an empty `surfaces` set means "off".
-WM_SURFACES = ("masthead", "divider", "void", "cover")
-WM_DEFAULTS = {"opacity": 0.13, "scale": 0.58, "anchor": "right"}
-
-
-def resolve_watermark(brand: dict | None, image: bytes | None) -> dict:
-    """Resolve the single watermark config from a brand dict (+ its already-
-    decoded image). Reads the nested `watermark` block, falling back to the
-    legacy flat `watermark_*` keys so old configs keep rendering identically.
-    `image` is None when there is no upload OR the brand disabled it."""
-    b = brand or {}
-    wm = b.get("watermark") if isinstance(b.get("watermark"), dict) else {}
-
-    def _num(key, lo, hi, dflt):
-        v = wm.get(key, b.get(f"watermark_{key}"))
-        try:
-            return max(lo, min(hi, float(v)))
-        except (TypeError, ValueError):
-            return dflt
-
-    anchor = str(wm.get("anchor") or b.get("watermark_anchor") or "right").lower()
-    if anchor not in ("left", "center", "right"):
-        anchor = "right"
-    # `surfaces` (new) or legacy `watermark_places`; absent → every surface.
-    sf = wm.get("surfaces", b.get("watermark_places"))
-    surfaces = ({s for s in sf if s in WM_SURFACES}
-                if isinstance(sf, (list, tuple, set)) else set(WM_SURFACES))
-    return {"image": image,
-            "opacity": _num("opacity", 0.0, 1.0, WM_DEFAULTS["opacity"]),
-            "scale":   _num("scale", 0.05, 1.0, WM_DEFAULTS["scale"]),
-            "anchor":  anchor, "surfaces": surfaces}
-
-
-def _wm_image(pdf, px: float, py: float, pw: float, ph: float,
-              image: bytes, opacity: float, scale: float, anchor: str) -> None:
-    """Draw the uploaded watermark image inside (px, py, pw, ph): sized to a
-    fraction of the panel HEIGHT (never stretched), aspect-preserved, edge-
-    anchored with an inset that clears the chamfer, vertically centred, low
-    opacity so it sits behind the text."""
-    try:
-        from PIL import Image as _PILImage
-        with _PILImage.open(io.BytesIO(image)) as _im:
-            iw, ih = _im.size
-        asp = (iw / ih) if ih else 1.0                      # width / height
-        h = ph * max(0.05, min(1.0, scale))
-        w = h * asp
-        if w > pw * 0.42:                                   # never dominate the panel
-            w = pw * 0.42
-            h = (w / asp) if asp else h
-        inset = ph * 0.16
-        x = (px + inset if anchor == "left"
-             else px + (pw - w) / 2.0 if anchor == "center"
-             else px + pw - inset - w)
-        y = py + (ph - h) / 2.0
-        with pdf.local_context(fill_opacity=max(0.0, min(1.0, opacity))):
-            pdf.image(io.BytesIO(image), x=x, y=y, w=w, h=h)
-    except Exception:
-        pass
-
-
-def _watermark(pdf, px: float, py: float, pw: float, ph: float, surface: str,
-               *, hex: tuple | None = None) -> None:
-    """Draw the brand watermark on `surface` inside the rect (px, py, pw, ph).
-
-    The ONE gate is `pdf.watermark['surfaces']`. The mark is the uploaded image
-    when there is one, else the theme's hex cluster — `hex` is that cluster's
-    (x, y, scale, rgb, variant, opacity) args, or None when the theme draws no
-    hex on this surface. Appearance (opacity/scale/anchor) comes from the single
-    resolved config and is identical on every surface."""
-    wm = getattr(pdf, "watermark", None)
-    if not wm or surface not in wm["surfaces"]:
-        return
-    if wm.get("image") is not None:
-        _wm_image(pdf, px, py, pw, ph, wm["image"], wm["opacity"], wm["scale"], wm["anchor"])
-    elif hex is not None:
-        _hex_cluster(pdf, *hex)
-
-
 # ──────────────────────────────────────────────────────────────────────────────
 # ReportTheme — the pluggable visual-identity interface.
 # ──────────────────────────────────────────────────────────────────────────────
@@ -849,13 +764,6 @@ class SpecTheme(ReportTheme):
                 _band = resolve_color(pdf, _fill["stops"][0].get("color"))
             except Exception:
                 pass
-        try:
-            _var = int(str(number)) % 3
-        except ValueError:
-            _var = 0
-        _watermark(pdf, x0, y0, w, H, "divider",
-                   hex=(x0 + w - 30, y0 - 5, 20, WHITE, _var, 0.10)
-                       if dv.get("watermark") == "hexCluster" else None)
         num = dv.get("number", {"size": 26, "color": "lime", "x": 9})
         pdf.set_xy(x0 + num.get("x", 9), y0 + 9)
         pdf.sf(num.get("size", 26), "bold")
@@ -899,47 +807,15 @@ class SpecTheme(ReportTheme):
             if self.decorate_void_photo(pdf, x0, x1, y, floor, gap, filler):
                 pdf._void_photo_idx += 1
                 return
-        deco = self._s("void").get("decoration", "hexCluster")
-        # The empty-space watermark filler ("watermark" = image-only, "hexCluster"
-        # = image if uploaded else the theme's drawn cluster) honours the single
-        # surface gate. "accentKeyline" is a separate, non-watermark filler.
-        wm = getattr(pdf, "watermark", None) or {}
+        deco = self._s("void").get("decoration", "accentKeyline")
+        # Watermarks are gone as a concept — the uploaded image, the drawn hex
+        # cluster and the faint sigil wash alike. A saved theme may still carry
+        # `"watermark"` or `"hexCluster"` here; treat both as "no filler" rather
+        # than failing, so an old spec still renders.
         if deco in ("watermark", "hexCluster"):
-            if "void" not in wm.get("surfaces", ()):
-                return
-            if wm.get("image") is not None:
-                sc = min(gap * 0.62, 60.0)
-                if sc >= 12:
-                    _watermark(pdf, x0, floor - sc, x1 - x0, sc, "void")
-                return
-            if deco == "watermark":         # image-only filler, but no image loaded
-                return
+            return
         try:
-            if deco == "hexCluster":
-                HEX_VEXT = 1.45
-                sig = getattr(pdf, "cover_sigil_bytes", None)
-                if sig:
-                    from PIL import Image
-                    iw, ih = Image.open(io.BytesIO(sig)).size
-                    sh = min(gap * 0.92, 150.0)
-                    sw = sh * iw / ih
-                    with pdf.local_context(fill_opacity=0.07):
-                        pdf.image(io.BytesIO(sig), x=x1 - sw * 0.60,
-                                  y=y + (gap - sh) / 2.0, w=sw, h=sh)
-                scale = min(gap / HEX_VEXT, 52.0)
-                if scale >= 12:
-                    _watermark(pdf, x0, floor - scale, scale, scale, "void",
-                               hex=(x0 - scale * 0.22, floor - scale * HEX_VEXT,
-                                    scale, pdf.primary_color, variant, 0.13))
-                if gap > 120:
-                    cxm = (x0 + x1) / 2
-                    _stroke_chamfer(pdf, cxm - 10, y + gap * 0.28, 18, 18,
-                                    pdf.primary_color, c=3.6, q=1.1, r=3.6,
-                                    line_w=0.45, opacity=0.11)
-                    _stroke_chamfer(pdf, cxm + 20, y + gap * 0.28 + 17, 11, 11,
-                                    pdf.lime, c=2.2, q=0.7, r=2.2,
-                                    line_w=0.45, opacity=0.18)
-            elif deco == "accentKeyline":
+            if deco == "accentKeyline":
                 sig = getattr(pdf, "cover_sigil_bytes", None)
                 if sig:
                     from PIL import Image
@@ -1008,25 +884,13 @@ class SpecTheme(ReportTheme):
         paint_shape(pdf, x0, y_m, W, MH,
                     cm.get("shape", {"kind": "chamfer", "c": 7.5, "q": 2.0, "r": 5.0}),
                     cm.get("fill", {"type": "solid", "color": "ink"}))
-        _watermark(pdf, x0, y_m, W, MH, "masthead",
-                   hex=(x0 + W - 42, y_m - 6, 30, WHITE, 0, 0.12)
-                       if cm.get("watermark") == "hexCluster" else None)
         # No `accent_rule`: the coloured bar it drew along the masthead's bottom
         # edge read as a stray solid border (especially over a gradient fill) and
         # was unwanted. The spec key is ignored if a saved theme still carries it.
 
     def cover_left_void_fill(self, pdf, x0, sc, bottom) -> None:
-        dec = self._s("cover_left_void").get("decoration", "hexCluster")
-        wm = getattr(pdf, "watermark", None) or {}
-        if dec in ("watermark", "hexCluster"):
-            if "cover" not in wm.get("surfaces", ()):
-                return
-            if wm.get("image") is not None:
-                _watermark(pdf, x0, bottom - sc, sc, sc, "cover")
-                return
-            if dec == "hexCluster":
-                _watermark(pdf, x0, bottom - sc, sc, sc, "cover",
-                           hex=(x0 - sc * 0.2, bottom - sc, sc, pdf.primary_color, 1, 0.13))
+        dec = self._s("cover_left_void").get("decoration", "accentKeyline")
+        if dec in ("watermark", "hexCluster"):      # removed; old specs no-op
             return
         if dec == "accentKeyline":
             ry = bottom - 6.0
@@ -1170,5 +1034,4 @@ __all__ = [
     "register_theme",
     "resolve_color",
     "resolve_theme",
-    "resolve_watermark",
 ]

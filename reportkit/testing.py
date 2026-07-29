@@ -166,7 +166,6 @@ def sample_brand(theme: str | None = None, *, imagery: bool = True) -> dict:
         cfg["back_image_base64"] = b64(gradient_png(900, 600, 29))
         cfg["filler_images_base64"] = [b64(gradient_png(700, 460, 41)),
                                        b64(gradient_png(700, 460, 53))]
-        cfg["watermark_base64"] = b64(labelled_png(300, 300, "WM", (255, 255, 255)))
     return cfg
 
 

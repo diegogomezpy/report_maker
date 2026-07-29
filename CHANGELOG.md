@@ -4,6 +4,23 @@ Notable changes to `reportkit`. Format follows [Keep a Changelog](https://keepac
 versioning is [semver](https://semver.org/). **The API is frozen at 1.0** — names
 will not move again without a major version.
 
+## [1.1.0] — 2026-07-29
+
+### Removed
+
+- **Watermarks, as a concept.** The uploaded watermark image, the drawn
+  hex-cluster marks, the faint sigil washes, `resolve_watermark`, `_wm_image`,
+  `pdf.watermark`, `Brand.watermark_image` and the six drawing call sites across
+  mastheads, chapter dividers, empty-space fillers and the cover column.
+
+  The `watermark*` keys stay in `KNOWN_KEYS` deliberately — inert, but
+  recognised, so a brand config saved before this release does not start warning
+  about keys it was told to write. A theme spec asking for `"watermark"` or
+  `"hexCluster"` decoration now draws nothing rather than failing.
+
+  Void fillers default to `accentKeyline`. One golden case moved
+  (`hexagon/imagery` — the only fixture that drew a mark), re-baselined.
+
 ## [1.0.0] — 2026-07-29
 
 **The API is frozen.** Renames, deletions and signature changes only — no new

@@ -52,8 +52,10 @@ KNOWN_KEYS = {
     "cover_logo_x_pct", "cover_logo_y_pct", "cover_logo_size_pct",
     "cover_sigil_x_pct", "cover_sigil_y_pct", "cover_sigil_size_pct",
     "cover_sigil_opacity",  # 0..1 opacity of the cover emblem (absent ⇒ 0.22)
-    "watermark",            # NEW — unified watermark: {image_base64, opacity, scale, anchor, surfaces}
-    # Legacy flat watermark_* keys — still honoured by resolve_watermark so older
+    # Watermarks were removed as a concept. These stay in KNOWN_KEYS so a
+    # config saved before the removal does not warn about them; nothing reads
+    # them.
+    "watermark",
     # configs load without a spurious "unrecognised keys" warning:
     "watermark_base64", "watermark_enabled", "watermark_opacity", "watermark_scale",
     "watermark_inset", "watermark_anchor", "watermark_places",
@@ -344,7 +346,6 @@ def _decode_b64(value):
 # two. That is worse than not knowing about them: a config was accepted whole
 # and then silently honoured in part, and the ~30 attributes the theme layer
 # reads had exactly one writer anywhere — the application this was extracted
-# from. For every other consumer, watermarks, the cover sigil and cover
 # photography were unreachable.
 #
 # `Brand` is PURE DATA: no fpdf import, no document. That is what lets a host
@@ -359,7 +360,7 @@ APPLIED_ATTRS = (
     "firm_name", "firm_logo_bytes", "firm_logo_aspect",
     "cover_logo_bytes", "cover_logo_aspect", "cover_sigil_bytes",
     "cover_image_bytes", "back_image_bytes", "filler_image_list",
-    "watermark", "cover_overlay_color", "cover_overlay_opacity",
+    "cover_overlay_color", "cover_overlay_opacity",
     "report_title", "website", "contact", "footer_note", "disclaimer_body",
     "cover_logo_x_pct", "cover_logo_y_pct", "cover_logo_size_pct",
     "cover_sigil_x_pct", "cover_sigil_y_pct", "cover_sigil_size_pct",
@@ -391,9 +392,7 @@ class Brand:
     cover_image: bytes | None = None
     back_image: bytes | None = None
     fillers: tuple = ()
-
-    watermark_image: bytes | None = None
-    raw: dict = field(default_factory=dict)     # the config, for resolve_watermark
+    raw: dict = field(default_factory=dict)     # the config, for brand fonts
     overlay_color: tuple | None = None
     overlay_opacity: float = 0.55
     placement: dict = field(default_factory=dict)
@@ -443,13 +442,7 @@ def resolve(cfg: dict | None, *, lang: str = "en", root=None, fetch=None,
     roles = assign_images(slots,
                           cover=_decode_b64(cfg.get("cover_image_base64")),
                           back=_decode_b64(cfg.get("back_image_base64")))
-
-    # A legacy flat `watermark_enabled: false` drops the image so the theme's
     # own drawn mark shows instead. Kept because old configs still say it.
-    wm_cfg = cfg.get("watermark") if isinstance(cfg.get("watermark"), dict) else {}
-    wm_b64 = wm_cfg.get("image_base64") or cfg.get("watermark_base64")
-    if cfg.get("watermark_enabled", True) is False:
-        wm_b64 = None
 
     logo = load_logo(cfg, root=root, fetch=fetch)
     if cfg.get("logo_url") and fetch is None and logo is None:
@@ -469,7 +462,6 @@ def resolve(cfg: dict | None, *, lang: str = "en", root=None, fetch=None,
         cover_logo=_decode_b64(cfg.get("cover_logo_base64")),
         cover_sigil=_decode_b64(cfg.get("cover_sigil_base64")),
         cover_image=roles.cover, back_image=roles.back, fillers=roles.fillers,
-        watermark_image=_decode_b64(wm_b64), raw=dict(cfg),
         overlay_color=(branding_color(cfg, "cover_overlay_color", None)
                        if cfg.get("cover_overlay_color") else None),
         overlay_opacity=(_opt_float(cfg, "cover_overlay_opacity") or 0.55),

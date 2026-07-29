@@ -42,7 +42,6 @@ def full_config() -> dict:
         "cover_logo_base64": png_b64(560, 120),
         "cover_sigil_base64": png_b64(200, 200),
         "filler_images_base64": [png_b64(90, 60), png_b64(90, 61), png_b64(90, 62)],
-        "watermark_base64": png_b64(100, 100),
         "cover_overlay_color": "#0B3B2E", "cover_overlay_opacity": 0.7,
         "cover_logo_x_pct": 0.1, "cover_sigil_opacity": 0.3,
         "report_title": "Quarterly Review", "website": "acme.example",
@@ -111,7 +110,7 @@ def test_resolve_reads_the_whole_config():
     b = B.resolve(full_config(), default_firm_name="Fallback")
     assert b.primary == (11, 59, 46) and b.section_rule == (163, 200, 63)
     assert b.firm_name == "Acme Capital" and b.theme_name == "hexagon"
-    assert b.logo and b.cover_logo and b.cover_sigil and b.watermark_image
+    assert b.logo and b.cover_logo and b.cover_sigil
     assert b.cover_image and b.back_image and len(b.fillers) == 1
     assert b.report_title == "Quarterly Review" and b.website == "acme.example"
     assert b.disclaimer_body == "Not investment advice."
@@ -156,11 +155,6 @@ def test_a_malformed_colour_costs_a_colour_not_the_brand():
     assert b.accent == (32, 148, 138)
 
 
-def test_legacy_watermark_enabled_false_drops_the_image():
-    """Old configs still say this, and it means 'use the theme's drawn mark'."""
-    cfg = dict(full_config(), watermark_enabled=False)
-    assert B.resolve(cfg, default_firm_name="X").watermark_image is None
-
 
 def test_brand_is_frozen():
     b = B.resolve({}, default_firm_name="X")
@@ -181,7 +175,7 @@ def test_apply_writes_every_applied_attr():
     doc = ReportDocument(brand=b, font_dir=FONTS)
     doc.apply_brand(b, font_dir=FONTS)
     assert doc.cover_image_bytes and doc.back_image_bytes
-    assert doc.cover_sigil_bytes and doc.watermark
+    assert doc.cover_sigil_bytes
     assert doc.filler_image_list and doc.report_title == "Quarterly Review"
     assert doc.cover_overlay_opacity == 0.7
     assert doc.cover_logo_x_pct == 0.1

@@ -41,7 +41,7 @@ from reportkit.color import (DEFAULT_ACCENT as _DEFAULT_ACCENT,
 from reportkit.theme import (
     ROW_ALT as _ROW_ALT, TEXT as _TEXT,
     WHITE as _WHITE,
-    build_tokens, resolve_theme, resolve_watermark, blend as _blend,
+    build_tokens, resolve_theme, blend as _blend,
     ReportTheme,
 )
 
@@ -169,7 +169,6 @@ class ReportDocument(FPDF):
         self.cover_image_bytes = None
         self.back_image_bytes = None
         self.filler_image_list = []
-        self.watermark = {}
         self.cover_overlay_color = None
         self.cover_overlay_opacity = 0.55
         self.disclaimer_body = ""
@@ -302,8 +301,6 @@ class ReportDocument(FPDF):
         * brand faces AFTER the default family — `register_brand_fonts` no-ops
           unless the Unicode family is already registered, so running it first
           leaves the document in the default type with no error;
-        * the watermark config AFTER its image is decoded, since the resolver
-          folds the image into the surfaces it gates;
         * the filler pool AFTER cover/back selection, or the cover photograph
           reappears as a body band halfway through the report.
 
@@ -322,8 +319,6 @@ class ReportDocument(FPDF):
         self.cover_image_bytes = brand.cover_image
         self.back_image_bytes = brand.back_image
         self.filler_image_list = list(brand.fillers)
-
-        self.watermark = resolve_watermark(brand.raw, brand.watermark_image)
         self.cover_overlay_color = brand.overlay_color or self.primary_color
         self.cover_overlay_opacity = brand.overlay_opacity
 
