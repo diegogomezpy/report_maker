@@ -41,7 +41,7 @@ import io
 import math
 from dataclasses import dataclass
 
-from fpdf.drawing import DeviceRGB
+from fpdf.drawing import PathPaintRule,  DeviceRGB
 from fpdf.pattern import LinearGradient, RadialGradient
 
 from reportkit.images import cover_crop_uncached
@@ -648,15 +648,25 @@ def paint_shape(pdf, x, y, w, h, shape, fill, opacity: float = 1.0) -> None:
     # branch, so a gradient painted with an opacity came out fully opaque — which
     # is what made a gradient cover tint hide the cover photo completely instead
     # of sitting over it.
+    # FILL ONLY. `PaintedPath.style.stroke_color` defaults to Ellipsis — meaning
+    # "inherit" — so the path was also STROKED with whatever draw colour was
+    # last set, drawing a solid outline around every gradient. The solid branch
+    # never showed it because `pdf.rect(style="F")` is fill-only.
+    def _paint():
+        with pdf.new_path() as p:
+            # The ENUM, not the string. `p.style.paint_rule = "fill_nonzero"`
+            # is accepted silently and does nothing — verified: 969 stroke
+            # pixels either way.
+            p.style.paint_rule = PathPaintRule.FILL_NONZERO
+            _shape_into(p, kind, geom, x, y, w, h)
+
     if opacity != 1.0:
         with pdf.local_context(fill_opacity=opacity):
             with pdf.use_pattern(grad):
-                with pdf.new_path() as p:
-                    _shape_into(p, kind, geom, x, y, w, h)
+                _paint()
         return
     with pdf.use_pattern(grad):
-        with pdf.new_path() as p:
-            _shape_into(p, kind, geom, x, y, w, h)
+        _paint()
 
 
 class SpecTheme(ReportTheme):
