@@ -19,10 +19,15 @@ draws what, on every page.
 """
 from __future__ import annotations
 
+import logging
+
 import base64
 import os
 import tempfile
 from pathlib import Path
+
+_log = logging.getLogger(__name__)
+
 
 # The six OFL-licensed TTFs that ship inside this package.
 _BUNDLED_DIR = Path(__file__).resolve().parent / "fonts"
@@ -71,7 +76,7 @@ def register_default_family(pdf, font_dir=None) -> bool:
         pdf.add_font(FAMILY_LIGHT,    "",   str(files["Light"]))
         return True
     except Exception as exc:
-        print(f"[reportkit.fonts] IBM Plex Sans registration failed: {exc}")
+        _log.error(f"IBM Plex Sans registration failed: {exc}")
         return False
 
 
@@ -122,7 +127,7 @@ def register_brand_fonts(pdf, branding: dict | None, brand_dir=None) -> None:
                     _pl = blob.split(",", 1)[1] if str(blob).strip().startswith("data:") else blob
                     path = _tmp_font(base64.b64decode(_pl), alnum, suffix)
                 except Exception as e:
-                    print(f"[reportkit.fonts] {font_name} {suffix} embedded decode failed: {e}")
+                    _log.warning(f"{font_name} {suffix} embedded decode failed: {e}")
                     path = None
             # 2) local file fallback
             if path is None:
@@ -133,11 +138,11 @@ def register_brand_fonts(pdf, branding: dict | None, brand_dir=None) -> None:
                     pdf.add_font(fam, code, path)
                     loaded.add(code)
                 except Exception as e:
-                    print(f"[reportkit.fonts] {font_name} {suffix} failed: {e}")
+                    _log.warning(f"{font_name} {suffix} failed: {e}")
         if "" not in loaded:
-            print(f"[reportkit.fonts] brand font '{font_name}' has no usable regular weight — using IBM Plex")
+            _log.warning("brand font '{font_name}' has no usable regular weight — using IBM Plex")
             return None
-        print(f"[reportkit.fonts] brand font '{font_name}' registered ({sorted(loaded)})")
+        _log.debug("brand font '{font_name}' registered ({sorted(loaded)})")
         return fam, loaded
 
     title = _register(b.get("title_font"), b.get("title_font_files"), [("", "Bold")])

@@ -20,12 +20,20 @@ Two things live here rather than in the core:
 """
 from __future__ import annotations
 
+import logging
+
 import threading
 import warnings
 from contextlib import contextmanager
 from contextvars import ContextVar
 
 from reportkit.color import remap_color, rgb_to_hue  # noqa: F401  (host re-exports)
+
+_log = logging.getLogger(__name__)
+
+#: Set once; see `_kopts_muted`.
+_KOPTS_FILTERED: list = []
+
 
 # Fallback palette, used only when a caller passes no colours. Defined in
 # `reportkit.color` (the core) and re-exported here, so the optional extra is
@@ -138,9 +146,9 @@ def _ensure_chrome() -> None:
         get_chrome = getattr(kaleido, "get_chrome_sync", None)
         if get_chrome is not None:
             get_chrome()
-            print("[reportkit.charts] fetched Chromium for Kaleido")
+            _log.info("fetched Chromium for Kaleido")
     except Exception as exc:
-        print(f"[reportkit.charts] Chrome fetch unavailable: {exc}")
+        _log.warning(f"Chrome fetch unavailable: {exc}")
 
 
 # Persistent Kaleido server. Plotly's pio.to_image boots a fresh headless
@@ -160,7 +168,7 @@ def _start_kaleido_server() -> bool:
         kaleido.start_sync_server()
         return True
     except Exception as exc:
-        print(f"[reportkit.charts] persistent Kaleido server unavailable "
+        _log.warning("persistent Kaleido server unavailable "
               f"({type(exc).__name__}: {exc}); exporting per figure")
         return False
 
@@ -209,6 +217,22 @@ def _release_kaleido() -> None:
             _KALEIDO_UP = False
 
 
+
+@contextmanager
+def _kopts_muted():
+    """Suppress plotly's per-figure "kopts is ignored" UserWarning, without
+    touching the global filter list from a worker thread.
+
+    Appending a filter is atomic enough (list.append) and idempotent here; what
+    is NOT safe is `catch_warnings`, which snapshots and RESTORES the whole
+    list, so a concurrent export's filter can be reinstated or lost.
+    """
+    if not _KOPTS_FILTERED:
+        warnings.filterwarnings("ignore", message=".*kopts.*", category=UserWarning)
+        _KOPTS_FILTERED.append(True)
+    yield
+
+
 def fig_to_png(fig, width: int = 900, height: int = 500,
                primary_color: tuple = DEFAULT_PRIMARY,
                accent_color: tuple = DEFAULT_ACCENT,
@@ -244,16 +268,25 @@ def fig_to_png(fig, width: int = 900, height: int = 500,
     # When the persistent server is running, plotly warns once per figure that
     # "kopts is ignored if using a server" — harmless (width/height/scale are
     # respected via the figure layout) but it floods the logs. Mute just that.
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", message=".*kopts.*", category=UserWarning)
+    #
+    # NOT with `warnings.catch_warnings()`: it saves and restores the
+    # process-global `warnings.filters`, and it is not thread-safe. This module
+    # documents its own concurrency and ref-counts Chrome under a lock for
+    # exactly that reason; the host renders reports in a threadpool. Two
+    # overlapping builds could leave the `ignore` filter permanently installed —
+    # silencing every UserWarning in the process, not just this one.
+    #
+    # `simplefilter`-free alternative: install the filter once, at module scope,
+    # where it is additive and no thread ever removes it.
+    with _kopts_muted():
         try:
             return pio.to_image(fig, format="png", width=width, height=height, scale=3)
         except Exception as exc:
-            print(f"[reportkit.charts] to_image failed ({type(exc).__name__}: {exc}); "
+            _log.warning(f"to_image failed ({type(exc).__name__}: {exc}); "
                   "retrying after Chrome fetch")
             _ensure_chrome()
             try:
                 return pio.to_image(fig, format="png", width=width, height=height, scale=3)
             except Exception as exc2:
-                print(f"[reportkit.charts] to_image failed again: {type(exc2).__name__}: {exc2}")
+                _log.error(f"to_image failed again: {type(exc2).__name__}: {exc2}")
                 return None

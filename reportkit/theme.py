@@ -32,6 +32,8 @@ hermetic golden pixel-diff harness (scratchpad/golden.py) guards against drift.
 """
 from __future__ import annotations
 
+import logging
+
 import io
 import math
 from dataclasses import dataclass
@@ -40,6 +42,9 @@ from fpdf.drawing import DeviceRGB
 from fpdf.pattern import LinearGradient, RadialGradient
 
 from reportkit.images import _cover_crop
+
+
+_log = logging.getLogger(__name__)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -496,7 +501,7 @@ def _parse_hex(s, default: tuple = TEXT) -> tuple:
             raise ValueError(f"expected 3 or 6 hex digits, got {h!r}")
         return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
     except Exception:
-        print(f"[reportkit.theme] unparseable colour {s!r}; using the default")
+        _log.warning(f"unparseable colour {s!r}; using the default")
         return default
 
 

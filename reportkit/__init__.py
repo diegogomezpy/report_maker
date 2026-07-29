@@ -41,6 +41,16 @@ try:                                    # installed (wheel / editable)
 except Exception:                       # running from a source checkout
     __version__ = "0.0.0+source"
 
+# A library must not configure logging for its host, but it must not print to
+# stdout either. NullHandler means reportkit is silent until a host opts in
+# with `logging.getLogger("reportkit").setLevel(...)` and a handler.
+#
+# One consequence worth knowing: `print` went to stdout, `logging` goes to
+# stderr, and some hosts (Cloud Run) map stderr to ERROR severity. A host that
+# wants these at their real level should attach its own stdout handler.
+import logging as _logging
+_logging.getLogger("reportkit").addHandler(_logging.NullHandler())
+
 # Keep the top-level surface small and stable — import the submodules for the
 # rest. Everything re-exported here is something a host application is expected
 # to touch directly.

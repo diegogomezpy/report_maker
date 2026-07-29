@@ -19,12 +19,16 @@ Two asymmetries here are deliberate:
 """
 from __future__ import annotations
 
+import logging
+
 import base64
-import warnings
 from dataclasses import dataclass, field
 
 from reportkit.images import (read_local_image,
                               resolve_within, to_embeddable_png)
+
+_log = logging.getLogger(__name__)
+
 
 #: Fallback palette for a brand that supplies nothing. Defined in
 #: `reportkit.color` and re-exported here for one release; import it from there.
@@ -82,18 +86,26 @@ def hex_to_rgb(hex_str: str) -> tuple[int, int, int]:
     return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
 
 
-def validate_branding(branding: dict | None, extra_keys=()) -> None:
-    """Warn (don't raise) on unrecognised branding keys — mirrors the early-typo
-    surfacing of NoteTerms.from_dict. A no-op when branding is empty."""
+def unknown_keys(branding: dict | None, extra_keys=()) -> list[str]:
+    """Keys the library does not recognise. The single predicate — `resolve` and
+    `validate_branding` used to carry their own copies of it."""
     if not branding:
-        return
-    unknown = [k for k in branding if k not in (KNOWN_KEYS | set(extra_keys))]
-    if unknown:
-        warnings.warn(
-            f"branding: ignoring unrecognised keys {unknown}. "
-            f"Known keys: {sorted((KNOWN_KEYS | set(extra_keys)))}.",
-            stacklevel=2,
-        )
+        return []
+    known = KNOWN_KEYS | set(extra_keys)
+    return [k for k in branding if k not in known]
+
+
+def validate_branding(branding: dict | None, extra_keys=()) -> list[str]:
+    """Report unrecognised branding keys, one message per key.
+
+    RETURNS the messages rather than raising a `UserWarning`. A config defect is
+    data about the caller's input, not an event in the interpreter, and routing
+    it through `warnings.warn` meant a host had to install a warnings filter to
+    show its users what it had ignored. `Brand.warnings` is now the only channel
+    for this class, so there is one place to look.
+    """
+    return [f"unrecognised branding key {k!r} — ignored"
+            for k in unknown_keys(branding, extra_keys)]
 
 
 def brand_text(value, lang: str):
@@ -110,9 +122,15 @@ def brand_text(value, lang: str):
 
 
 def branding_color(branding: dict | None, key: str,
-                    default: tuple[int, int, int]) -> tuple[int, int, int]:
-    """Resolve one hex colour from the branding dict, falling back to `default`
-    (with a warning) when absent or malformed — never raises deep inside the PDF."""
+                    default: tuple[int, int, int],
+                    sink: list | None = None) -> tuple[int, int, int]:
+    """Resolve one hex colour, falling back to `default` when absent or
+    malformed — never raises deep inside the PDF.
+
+    `sink` collects the fallback message. Absent, the fallback is silent: a
+    caller reading one colour has its own way of reporting, and `resolve`
+    passes a sink so the message reaches `Brand.warnings`.
+    """
     if not branding:
         return default
     raw = branding.get(key)
@@ -121,15 +139,14 @@ def branding_color(branding: dict | None, key: str,
     try:
         return hex_to_rgb(raw)
     except (ValueError, TypeError):
-        warnings.warn(
-            f"branding['{key}'] = {raw!r} is not a valid hex colour "
-            f"(e.g. '#003366'); using the default.",
-            stacklevel=2,
-        )
+        if sink is not None:
+            sink.append(f"branding[{key!r}] = {raw!r} is not a valid hex colour "
+                        f"(e.g. '#003366'); using the default")
         return default
 
 
-def resolve_palette(branding: dict | None, *, default_firm_name: str) -> tuple[
+def resolve_palette(branding: dict | None, *, default_firm_name: str,
+                    sink: list | None = None) -> tuple[
     tuple[int, int, int], tuple[int, int, int],
     tuple[int, int, int], tuple[int, int, int], str
 ]:
@@ -138,10 +155,10 @@ def resolve_palette(branding: dict | None, *, default_firm_name: str) -> tuple[
     never raises. section_rule defaults to the accent colour when absent."""
     if not branding:
         return DEFAULT_PRIMARY, DEFAULT_ACCENT, DEFAULT_SECONDARY, DEFAULT_ACCENT, default_firm_name
-    primary      = branding_color(branding, "primary_color",         DEFAULT_PRIMARY)
-    accent       = branding_color(branding, "accent_color",          DEFAULT_ACCENT)
-    secondary    = branding_color(branding, "chart_secondary_color", DEFAULT_SECONDARY)
-    section_rule = branding_color(branding, "section_rule_color",    accent)
+    primary      = branding_color(branding, "primary_color",         DEFAULT_PRIMARY, sink)
+    accent       = branding_color(branding, "accent_color",          DEFAULT_ACCENT, sink)
+    secondary    = branding_color(branding, "chart_secondary_color", DEFAULT_SECONDARY, sink)
+    section_rule = branding_color(branding, "section_rule_color",    accent, sink)
     firm         = branding.get("firm_name", default_firm_name) or default_firm_name
     return primary, accent, secondary, section_rule, firm
 
@@ -172,7 +189,14 @@ def load_logo(branding: dict | None, *, root=None, fetch=None) -> bytes | None:
         data = to_embeddable_png(read_local_image((resolve_within(spec, root) if root else None)))
         if data:
             return data
-        print(f"[reportkit.branding] logo_file unusable ({spec}); trying next source")
+        # `root is None` means the file was never OPENED — path access is
+        # opt-in. Reporting it as "unusable" blamed the file for a policy
+        # decision, and contradicted the `Brand.warnings` entry from this very
+        # call, which says the right thing.
+        if root is None:
+            _log.debug("logo_file ignored: no `root` supplied (path access is opt-in)")
+        else:
+            _log.warning("logo_file unusable (%s); trying next source", spec)
     # 2. Base64 / data URI
     b64 = branding.get("logo_base64")
     if b64:
@@ -180,17 +204,17 @@ def load_logo(branding: dict | None, *, root=None, fetch=None) -> bytes | None:
             payload = b64.split(",", 1)[1] if b64.strip().startswith("data:") else b64
             data = to_embeddable_png(base64.b64decode(payload))
             if data:
-                print(f"[reportkit.branding] OK  base64 -> embeddable PNG")
+                _log.debug("OK  base64 -> embeddable PNG")
                 return data
         except Exception as exc:
-            print(f"[reportkit.branding] FAIL base64: {exc}")
+            _log.warning(f"FAIL base64: {exc}")
     # 3. Remote URL
     url = branding.get("logo_url")
     if url:
         if fetch is None:
-            print("[reportkit.branding] logo_url ignored: no `fetch` supplied. "
-                  "Pass fetch=reportkit.images.fetch_image_bytes to allow the "
-                  "network.")
+            # Deliberately silent here: `resolve` already appends this exact
+            # condition to `Brand.warnings`, which the host renders. Saying it
+            # twice trained operators to skim.
             return None
         return to_embeddable_png(fetch(url))
     return None
@@ -403,14 +427,12 @@ def resolve(cfg: dict | None, *, lang: str = "en", root=None, fetch=None,
     default for a config you did not author.
     """
     cfg = cfg or {}
-    warn: list[str] = []
-    known = KNOWN_KEYS | set(extra_keys)
-    for key in cfg:
-        if key not in known:
-            warn.append(f"unrecognised branding key {key!r} — ignored")
+    # One predicate for "unknown key" — this loop used to be a second copy of
+    # `validate_branding`'s, and the host calls BOTH with the same extra_keys.
+    warn: list[str] = validate_branding(cfg, extra_keys)
 
     primary, accent, secondary, section_rule, firm = resolve_palette(
-        cfg, default_firm_name=default_firm_name)
+        cfg, default_firm_name=default_firm_name, sink=warn)
 
     slots = decode_slots(cfg.get("filler_images_base64"))
     roles = assign_images(slots,

@@ -26,6 +26,8 @@ cleanup.
 """
 from __future__ import annotations
 
+import logging
+
 import io
 
 from fpdf import FPDF
@@ -42,6 +44,9 @@ from reportkit.theme import (
     build_tokens, resolve_theme, resolve_watermark, blend as _blend,
     ReportTheme,
 )
+
+
+_log = logging.getLogger(__name__)
 
 
 #: The only copy reportkit's own chrome emits. A host overrides any of these by
@@ -232,7 +237,7 @@ class ReportDocument(FPDF):
             self._font_family = _rk_fonts.FAMILY
             self._use_unicode = True
             self._sf_map = dict(_rk_fonts.DEFAULT_STYLE_MAP)
-            print("[reportkit.document] Using IBM Plex Sans")
+            _log.debug("Using IBM Plex Sans")
         else:
             # Every page renders in Helvetica from here — Latin-1 only, so
             # `_safe(latin1=True)` becomes load-bearing. This is a whole-document
@@ -240,7 +245,7 @@ class ReportDocument(FPDF):
             self._font_family = "Helvetica"
             self._use_unicode = False
             self._sf_map = dict(_rk_fonts.HELVETICA_STYLE_MAP)
-            print("[reportkit.document] Using Helvetica fallback")
+            _log.error("Using Helvetica fallback")
 
     # ------------------------------------------------------------------
     # Font helpers

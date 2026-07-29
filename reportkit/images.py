@@ -7,10 +7,15 @@ helpers degrade to returning their input unchanged).
 """
 from __future__ import annotations
 
+import logging
+
 import functools
 import io
 import urllib.request
 from pathlib import Path
+
+
+_log = logging.getLogger(__name__)
 
 
 def cover_crop(raw: bytes | None, aspect: float,
@@ -75,7 +80,7 @@ def _cover_crop(raw: bytes | None, aspect: float,
         buf = io.BytesIO(); im.save(buf, "PNG")
         return buf.getvalue()
     except Exception as e:
-        print(f"[reportkit.images] crop skipped: {e}")
+        _log.warning(f"crop skipped: {e}")
         return raw
 
 
@@ -135,7 +140,7 @@ def dimensions_sane(raw: bytes, max_px: int | None = None) -> bool:
     except Exception:
         return True          # not decodable here; the caller's own guards apply
     if w * h > max_px:
-        print(f"[reportkit.images] refused {w}x{h} ({w * h / 1e6:.0f} MPx) — over the "
+        _log.warning(f"refused {w}x{h} ({w * h / 1e6:.0f} MPx) — over the "
               f"{max_px / 1e6:.0f} MPx ceiling")
         return False
     return True
@@ -171,10 +176,10 @@ def to_embeddable_png(raw: bytes | None) -> bytes | None:
         out = io.BytesIO()
         im.save(out, format="PNG")
         data = out.getvalue()
-        print(f"[reportkit.images] converted {len(raw):,}b -> PNG {len(data):,}b ({im.size[0]}x{im.size[1]})")
+        _log.debug(f"converted {len(raw):,}b -> PNG {len(data):,}b ({im.size[0]}x{im.size[1]})")
         return data
     except Exception as exc:
-        print(f"[reportkit.images] convert FAIL ({len(raw)}b): {exc}")
+        _log.warning(f"convert FAIL ({len(raw)}b): {exc}")
         return None
 
 
@@ -205,7 +210,7 @@ def fetch_image_bytes(url: str, timeout: int = 8) -> bytes | None:
     # requester downloads) as well as ftp:// and data:. Nothing legitimate here
     # is served over anything but HTTP.
     if not str(url).lower().startswith(("http://", "https://")):
-        print(f"[reportkit.images] refused non-http URL scheme: {str(url)[:60]!r}")
+        _log.warning(f"refused non-http URL scheme: {str(url)[:60]!r}")
         return None
     # Upgrade Google favicon requests to sz=256 for crisper logos
     if "google.com/s2/favicons" in url:
@@ -226,12 +231,12 @@ def fetch_image_bytes(url: str, timeout: int = 8) -> bytes | None:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = resp.read()
         if not data:
-            print(f"[reportkit.images] Empty response from {url}")
+            _log.warning(f"Empty response from {url}")
             return None
-        print(f"[reportkit.images] OK  {len(data):,} bytes  {url}")
+        _log.debug(f"OK  {len(data):,} bytes  {url}")
         return data
     except Exception as exc:
-        print(f"[reportkit.images] FAIL {url!r}: {exc}")
+        _log.warning(f"FAIL {url!r}: {exc}")
         return None
 
 
@@ -243,15 +248,15 @@ def read_local_image(path: Path | None) -> bytes | None:
         if path is None or not path.exists() or not path.is_file():
             return None
         if path.suffix.lower() == ".svg":
-            print(f"[reportkit.images] SKIP SVG (not renderable by fpdf2): {path}")
+            _log.warning(f"SKIP SVG (not renderable by fpdf2): {path}")
             return None
         data = path.read_bytes()
         if not data:
             return None
-        print(f"[reportkit.images] OK  {len(data):,} bytes  {path}")
+        _log.debug(f"OK  {len(data):,} bytes  {path}")
         return data
     except Exception as exc:
-        print(f"[reportkit.images] FAIL local {path!r}: {exc}")
+        _log.warning(f"FAIL local {path!r}: {exc}")
         return None
 
 
@@ -277,5 +282,5 @@ def resolve_within(spec: str, root: Path) -> Path | None:
         p.relative_to(root)          # raises if p is outside the repo root
         return p
     except Exception:
-        print(f"[reportkit.images] logo_file refused (outside the repo root): {spec!r}")
+        _log.warning(f"logo_file refused (outside the repo root): {spec!r}")
         return None

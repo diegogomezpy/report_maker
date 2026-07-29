@@ -57,27 +57,35 @@ def test_a_clean_config_warns_about_nothing():
 
 # ── the promise that is not kept ─────────────────────────────────────────────
 
-@pytest.mark.xfail(reason="C2: goes to warnings.warn, not Brand.warnings — the "
-                          "docstring promises 'an unparseable colour' appears here",
-                   strict=True)
 def test_a_malformed_colour_is_reported_through_the_same_channel():
-    """One config, one place to look. Today a bad colour raises a `UserWarning`
-    instead, so a host that dutifully prints `brand.warnings` shows the operator
-    nothing while the palette silently falls back to a default."""
+    """One config, one place to look.
+
+    This was `xfail(strict=True)` until C2: a bad colour raised a `UserWarning`,
+    so a host that dutifully printed `brand.warnings` showed the operator
+    nothing while the palette silently fell back to a default."""
     b = resolve({"primary_color": "#zz"})
     assert b.primary == B.DEFAULT_PRIMARY
     assert any("primary_color" in w for w in b.warnings)
 
 
-def test_the_malformed_colour_still_degrades_correctly_today():
-    """Whatever channel it uses, the VALUE behaviour is already right and must
-    not regress while C2 moves the message."""
+def test_one_bad_colour_does_not_cost_the_others():
+    """The VALUE behaviour, which C2 must not disturb while it moves the message."""
+    b = resolve({"primary_color": "#zz", "accent_color": "#20948A"})
+    assert b.primary == B.DEFAULT_PRIMARY
+    assert b.accent == (32, 148, 138)
+
+
+def test_the_package_no_longer_reaches_for_the_warnings_machinery():
+    """Two channels survive the freeze: `logging` for operational events,
+    `Brand.warnings` for config validation. A third — `warnings.warn` — meant a
+    host had to install a filter to see what its own config had been told."""
+    import reportkit.branding as _b
+    assert not hasattr(_b, "warnings"), "warnings is back in branding"
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        b = resolve({"primary_color": "#zz", "accent_color": "#20948A"})
-    assert b.primary == B.DEFAULT_PRIMARY
-    assert b.accent == (32, 148, 138), "one bad colour must not cost the others"
-    assert any("primary_color" in str(c.message) for c in caught)
+        resolve({"primary_color": "#zz", "nonsense": 1,
+                 "logo_url": "https://x.invalid/l.png"})
+    assert caught == [], f"package raised UserWarnings: {[str(c.message) for c in caught]}"
 
 
 def test_diagnostics_do_not_duplicate_across_channels():
@@ -87,3 +95,45 @@ def test_diagnostics_do_not_duplicate_across_channels():
     b = resolve({"logo_url": "https://x.invalid/l.png"})
     hits = [w for w in b.warnings if "logo_url" in w]
     assert len(hits) == 1, f"reported {len(hits)} times in one channel: {hits}"
+
+
+# ── logging ──────────────────────────────────────────────────────────────────
+
+def test_the_package_is_silent_until_a_host_opts_in():
+    """A library must not print to stdout and must not configure logging for its
+    host. NullHandler is the contract: nothing is emitted until someone attaches
+    a handler."""
+    import logging
+    lg = logging.getLogger("reportkit")
+    assert any(isinstance(h, logging.NullHandler) for h in lg.handlers)
+
+
+def test_nothing_writes_to_stdout(capsys):
+    """`print` was the diagnostic channel for 28 messages. It is not any more —
+    and a host on Cloud Run cares, because stdout and stderr get different
+    severities."""
+    resolve({"primary_color": "#zz", "logo_file": "nope.png",
+             "logo_url": "https://x.invalid/l.png", "nonsense": 1})
+    assert capsys.readouterr().out == ""
+
+
+def test_a_degrade_is_logged_at_a_level_that_can_be_filtered(caplog):
+    """The point of levels: an operator can ask for warnings without drowning in
+    per-image debug lines."""
+    import logging
+    with caplog.at_level(logging.DEBUG, logger="reportkit"):
+        resolve({"logo_base64": "not-valid-base64!!"})
+    assert any(r.levelno >= logging.WARNING for r in caplog.records), \
+        "an undecodable logo must be reported above DEBUG"
+
+
+def test_an_opt_in_policy_is_not_reported_as_a_failure(caplog):
+    """`logo_file` with no `root` was logged as "unusable" — blaming the file for
+    a policy decision, and contradicting the `Brand.warnings` entry from the
+    same call, which says the right thing."""
+    import logging
+    with caplog.at_level(logging.DEBUG, logger="reportkit"):
+        b = resolve({"logo_file": "logo.png"})
+    assert not [r for r in caplog.records
+                if r.levelno >= logging.WARNING and "unusable" in r.getMessage()]
+    assert any("logo_file" in w and "root" in w for w in b.warnings)
