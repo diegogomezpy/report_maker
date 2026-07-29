@@ -146,7 +146,8 @@ class ReportDocument(FPDF):
                  panel_color: tuple | None = None,
                  sidebar_bar_color: tuple | None = None,
                  theme: "ReportTheme | None" = None,
-                 font_dir=None, labels=None, brand=None):
+                 font_dir=None, labels=None, brand=None,
+                 outline: bool = True):
         # A Brand, if given, supplies the palette BEFORE tokens are derived.
         # It cannot arrive afterwards: `build_tokens` runs once in this
         # constructor, and a second derivation site is the duplicated-state bug
@@ -226,6 +227,18 @@ class ReportDocument(FPDF):
         self.footer_note   = footer_note
         # Aspect ratio so a wide wordmark isn't squashed into a square box.
         self.firm_logo_aspect = _logo_aspect(firm_logo_bytes, default=1.0)
+        # PDF outline (bookmarks). `_outline_open` is the stack of semantic
+        # levels still open, which is what turns "this is a subsection" into
+        # "emit at depth N" without assuming every level in between was used.
+        self.outline_enabled = bool(outline)
+        self._outline_open: list = []
+        # Internal links, so a designed contents page is clickable. Created by
+        # `link_for` when the row is drawn, bound by `_mark_outline` when the
+        # heading is.
+        self._links: dict = {}
+        self._links_bound: set = set()
+        if self.outline_enabled:
+            self.page_mode = "USE_OUTLINES"
         self._is_cover     = False
         self._cover_pages  = set()   # page numbers with no running header/footer (covers)
         # `{chapter_key: "01"}` from `_plan_chapters` — the numbers the contents
@@ -382,7 +395,8 @@ class ReportDocument(FPDF):
     # ------------------------------------------------------------------
     # Building blocks
     # ------------------------------------------------------------------
-    def start_section(self, text: str, min_room: float = SECTION_ROOM):
+    def open_section(self, text: str, min_room: float = SECTION_ROOM,
+                     level: int = 1):
         """Begin a major section, breaking to a new page only when needed.
 
         ``min_room`` is the space the section title PLUS its first block need; we
@@ -398,7 +412,107 @@ class ReportDocument(FPDF):
             self.add_page()
         else:
             self.ln(6)   # generous separation between stacked sections
-        self.section_title(text)
+        self.section_title(text, _outline_level=level)
+
+    def start_section(self, text: str, min_room: float = SECTION_ROOM):
+        """Deprecated alias for `open_section`. Removed at 1.0.
+
+        The rename is the point, not cosmetics: this method SHADOWED
+        `FPDF.start_section`, which is how fpdf2 builds the PDF outline (the
+        bookmark tree a reader shows in its sidebar). While it shadowed, no
+        reportkit document could have one, and `write_html()` — which calls the
+        base method for `<h1>`..`<h6>` — silently got a pagination decision
+        instead of a heading.
+        """
+        import warnings as _w
+        _w.warn("ReportDocument.start_section is deprecated; use open_section. "
+                "The name is being returned to fpdf2, whose start_section builds "
+                "the document outline.", DeprecationWarning, stacklevel=2)
+        return self.open_section(text, min_room=min_room)
+
+    # ------------------------------------------------------------------
+    # Document outline (PDF bookmarks)
+    # ------------------------------------------------------------------
+    def _mark_outline(self, title: str, sem_level: int, anchor=None,
+                      link_key: str | None = None) -> None:
+        """Register one outline entry for a heading that was just drawn.
+
+        Three things here are load-bearing:
+
+        * **Cursor rewind.** fpdf2 anchors the destination at the LIVE cursor
+          (`DestinationXYZ(..., top=h_pt - y*k)`), and the theme hook has
+          already moved it past the heading. Without rewinding, every bookmark
+          lands 18-36mm BELOW the thing it names.
+        * **An open-level stack, not a clamp.** `min(level, last+1)` nests a
+          sibling under its predecessor whenever an intermediate level is
+          absent. The stack answers "how many ancestors are still open?".
+        * **No `section_title_styles`.** A non-empty style list makes
+          `FPDF.start_section` re-render the name through `multi_cell` — every
+          heading printed twice, possibly with a page break between.
+        """
+        if not self.outline_enabled or self.page_no() == 0:
+            return
+        title = (title or "").strip()
+        if not title:
+            return
+        stack = [lv for lv in self._outline_open if lv < sem_level]
+        emitted = len(stack)
+        # `FPDF.start_section` raises on a level more than one deeper than the
+        # last entry. That can happen if anything appended to `_outline` behind
+        # our back — the base method is reachable, and fpdf2's own
+        # `insert_toc_placeholder` uses it. Clamp rather than abort a render.
+        if self._outline:
+            emitted = min(emitted, self._outline[-1].level + 1)
+        # `anchor` is (page_no, y) captured BEFORE the theme hook drew the
+        # heading. Taking it here instead would anchor every bookmark below the
+        # thing it names, because the hook has already advanced the cursor —
+        # and if the hook broke to a new page, the pre-break y belongs to a page
+        # that is no longer current, so fall back to the top margin.
+        x_before, y_before = self.x, self.y
+        page_at, y_at = anchor if anchor else (self.page_no(), self.y)
+        try:
+            self.y = y_at if page_at == self.page_no() else self.t_margin
+            super().start_section(self._safe(title), level=emitted, strict=False)
+            self._outline_open = stack + [sem_level]
+            # Bind any contents row that named this heading. A numbered head
+            # registers as "01 · Holdings" while the contents row says
+            # "Holdings", so bind BOTH spellings — otherwise every chapter row
+            # links to page 1, which is what fpdf does with an unbound link.
+            for key in {title, (link_key or "").strip()} - {""}:
+                if key in self._links:
+                    self.set_link(self._links[key], y=self.y, page=self.page_no())
+                    self._links_bound.add(key)
+        except Exception as exc:                 # never lose a report to a bookmark
+            _log.warning("outline entry %r skipped: %s", title, exc)
+        finally:
+            self.x, self.y = x_before, y_before
+
+    def link_for(self, title: str) -> int:
+        """A stable internal-link id for a heading title, created on demand.
+
+        The contents list draws rows before the headings exist, so the id has to
+        come first and be bound later — `_mark_outline` calls `set_link` when
+        the heading is actually drawn. A title that never gets a heading leaves
+        its link unbound, which fpdf resolves to page 1; `unbound_links()`
+        reports those rather than leaving them to be discovered by clicking.
+        """
+        key = (title or "").strip()
+        got = self._links.get(key)
+        if got is None:
+            got = self._links[key] = self.add_link()
+        return got
+
+    def unbound_links(self) -> list:
+        """Contents rows whose heading was never drawn — a link to nowhere."""
+        return sorted(k for k in self._links if k not in self._links_bound)
+
+    def bookmark(self, title: str, level: int = 0) -> None:
+        """Add an outline entry by hand, for a page no theme hook draws a head on.
+
+        Covers and back pages are the reason this is public: they are laid out
+        by the host, so nothing in the package sees a heading to hook.
+        """
+        self._mark_outline(title, level)
 
     def _eyebrow(self, x: float, y: float, text: str, color: tuple,
                  size: float = 7.0, tracking: float = 0.4,
@@ -406,16 +520,23 @@ class ReportDocument(FPDF):
         return self.theme.eyebrow(self, x, y, text, color,
                                   size=size, tracking=tracking, w=w, align=align)
 
-    def section_title(self, text: str):
-        return self.theme.section_title(self, text)
+    def section_title(self, text: str, _outline_level: int = 1):
+        at = (self.page_no(), self.y)
+        out = self.theme.section_title(self, text)
+        self._mark_outline(text, _outline_level, at)
+        return out
 
     def secondary_head(self, number: str, kicker: str, title: str,
                        min_room: float = 40.0, badge: str | None = None,
                        badge_color: tuple | None = None,
                        badge_logo: bytes | None = None):
-        return self.theme.secondary_head(self, number, kicker, title,
-                                         min_room=min_room, badge=badge,
-                                         badge_color=badge_color, badge_logo=badge_logo)
+        at = (self.page_no(), self.y)
+        out = self.theme.secondary_head(self, number, kicker, title,
+                                        min_room=min_room, badge=badge,
+                                        badge_color=badge_color, badge_logo=badge_logo)
+        self._mark_outline(f"{number} · {title}" if number else title, 0, at,
+                           link_key=title)
+        return out
 
     def _decorate_void(self, variant: int = 0, min_gap: float = 44.0) -> None:
         return self.theme.decorate_void(self, variant=variant, min_gap=min_gap)
@@ -465,10 +586,16 @@ class ReportDocument(FPDF):
         return _rk_cover.left_photo(self, x0, top, w, bottom, img)
 
     def section_divider(self, number: str, kicker: str, heading: str):
-        return self.theme.section_divider(self, number, kicker, heading)
+        at = (self.page_no(), self.y)
+        out = self.theme.section_divider(self, number, kicker, heading)
+        self._mark_outline(f"{number} · {heading}" if number else heading, 0, at,
+                           link_key=heading)
+        return out
 
     def subsection(self, text: str, min_room: float = 27.0):
+        at = (self.page_no(), self.y)
         out = self.theme.subsection(self, text, min_room=min_room)
+        self._mark_outline(text, 2, at)
         # Claim the page for whatever block comes next — see _head_claimed().
         self._head_page = self.page_no()
         return out

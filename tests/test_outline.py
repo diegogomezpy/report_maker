@@ -15,6 +15,7 @@ pytest.importorskip("fpdf")
 import reportkit.branding as B                       # noqa: E402
 import reportkit.outline as O                        # noqa: E402
 from reportkit import ReportDocument                 # noqa: E402
+from reportkit.document import SECTION_ROOM         # noqa: E402
 
 FONTS = Path(B.__file__).resolve().parent / "fonts"
 ORDER = ("terms", "issuer", "underlying", "mc", "bt", "live", "compare")
@@ -148,7 +149,10 @@ class Rec(ReportDocument):
     def section_divider(self, number, kicker, heading):
         self.drawn.append(("divider", heading))
 
-    def start_section(self, title, min_room=146.0):
+    def open_section(self, title, min_room=SECTION_ROOM, level=1):
+        # NOT `start_section`: that name went back to fpdf2, which uses it to
+        # build the outline. A fake that shadows the old name silently records
+        # nothing, and this file is where that shows up.
         self.drawn.append(("section", title))
 
 

@@ -127,7 +127,11 @@ def contents_list(pdf, groups, *, x: float, y: float, w: float,
         indent += num_w
         pdf.set_xy(x + indent, yc)
         pdf._sf(8.0, "regular"); pdf.set_text_color(*pdf.body_ink)
-        pdf.cell(w - indent, row_h, _safe(text))
+        # `link=` makes the row clickable. The library drew a designed table of
+        # contents that a reader could not use — the more discoverable half of
+        # navigation, missing while the bookmark tree got all the attention.
+        pdf.cell(w - indent, row_h, _safe(text),
+                 link=pdf.link_for(text) if hasattr(pdf, "link_for") else None)
         pdf.set_draw_color(*_RULE_SOFT); pdf.set_line_width(0.2)
         pdf.line(x, yc + row_h, x + w, yc + row_h)
         yc += row_h
@@ -143,6 +147,12 @@ def contents_list(pdf, groups, *, x: float, y: float, w: float,
             ind = num_w
         pdf._eyebrow(x + ind, yc + 0.4, name, pdf.primary_color,
                      size=7.0, tracking=0.5, w=w - ind)
+        # A head is drawn through the theme's eyebrow hook, which takes no
+        # `link=`. Lay a link REGION over the row instead — the chapter rows are
+        # the ones a reader most wants to click, so leaving only the leaves
+        # clickable would be the wrong half.
+        if hasattr(pdf, "link_for"):
+            pdf.link(x, yc, w, row_h, pdf.link_for(name))
         yc += row_h
 
     for name, number, leaves in groups:
@@ -184,6 +194,6 @@ def lazy_section(pdf, title: str, min_room: float = SECTION_ROOM, before=None):
         if before is not None:
             before()
         if not state["done"]:
-            pdf.start_section(title, min_room=min_room)
+            pdf.open_section(title, min_room=min_room)
             state["done"] = True
     return ensure
