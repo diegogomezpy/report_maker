@@ -14,21 +14,22 @@ The theme is handed palette-derived ThemeTokens and draws through the host's liv
 document instance (passed as `pdf`, any FPDF subclass exposing the small surface
 the hooks use: `.t(key)`, `._safe`, `._sf`, tokens like `.ink`/`.lime`/…), so it
 has full access to fpdf primitives, fonts, and page geometry. The host module in
-this repo is app/pdf_report.py (the Structured Note Simulator's report adapter),
+a host application supplies the content and the labels,
 but nothing here depends on that — reportkit is reusable by any project.
 
 Themes
 ------
 - HexagonTheme  — a chamfer-hexagon language (dark mastheads, lime number-chips,
-  hex-cluster watermarks). CADIEM selects it via branding["report_theme"].
+  hex-cluster watermarks). Selected via branding["report_theme"].
 - MercatorTheme — a cleaner, website-inspired language (rounded cards, accent
   keylines, no chamfers/hexagons). The default for un-themed brands.
 
 Selection: branding["report_theme"] → resolve_theme(); an absent/unknown value
 falls back to DEFAULT_THEME.
 
-Regression contract: HexagonTheme reproduces the reference CADIEM output; a
-hermetic golden pixel-diff harness (scratchpad/golden.py) guards against drift.
+Regression contract: a hermetic per-page pixel golden (tests/test_golden.py,
+over reportkit.testing.sample_document) plus tests/test_theme.py guard both
+built-in themes against drift.
 """
 from __future__ import annotations
 
@@ -53,7 +54,7 @@ _log = logging.getLogger(__name__)
 # Design tokens — the palette-derived colour vocabulary every theme shares.
 # ──────────────────────────────────────────────────────────────────────────────
 # Brand-neutral constants (the design has NO red; downside is amber). These are
-# the canonical home; pdf_report.py re-imports them so there is one source.
+# the canonical home; a host re-imports them so there is one source.
 WHITE         = (255, 255, 255)
 BLACK         = (0,   0,   0)
 AMBER         = (201, 119,  45)  # #C9772D — downside / capital-loss
@@ -102,7 +103,8 @@ def build_tokens(primary: tuple, accent: tuple, section_rule: tuple,
     `sidebar_bar` may be pinned by the brand; otherwise `panel` is a very light
     tint of PRIMARY (so a bold accent never yields a pink card) and `sidebar_bar`
     is the primary (matching the table headers). Mirrors the original
-    _NotePDF.__init__ derivation exactly — byte-identity depends on it."""
+    the document constructor's derivation exactly — byte-identity depends
+    on it."""
     return ThemeTokens(
         primary=primary,
         accent=accent,
@@ -307,17 +309,17 @@ def _watermark(pdf, px: float, py: float, pw: float, ph: float, surface: str,
 # ──────────────────────────────────────────────────────────────────────────────
 # ReportTheme — the pluggable visual-identity interface.
 # ──────────────────────────────────────────────────────────────────────────────
-# A theme owns every "look" decision. Each hook receives the live _NotePDF
+# A theme owns every "look" decision. Each hook receives the live document
 # instance (`pdf`) and draws through it — so it has full access to fpdf
 # primitives, the active fonts, page geometry, and the palette tokens on
 # pdf.tokens / pdf.ink / pdf.lime / … . Content code (tables, figures, copy)
-# never calls these directly; it calls the _NotePDF wrappers which delegate to
+# never calls these directly; it calls the ReportDocument wrappers which delegate to
 # pdf.theme, so swapping the theme swaps the entire identity.
 #
 # Cross-module note: a couple of hooks need report helpers that live in
-# pdf_report.py (the translated footer strings via pdf.t(); the photo cropper).
+# the host (translated chrome strings via pdf.t(); the photo cropper).
 # These are reached through the `pdf` instance or a deferred import to avoid an
-# import cycle (pdf_report imports this module at top level).
+# import cycle (the document module imports this one at top level).
 class ReportTheme:
     """Base interface. Subclasses implement the chrome hooks. The default
     implementations raise so a partial theme fails loudly rather than silently

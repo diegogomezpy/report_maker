@@ -8,7 +8,7 @@ It grew out of a structured-note analytics app whose report generator was worth
 more than the app it lived in. This is that generator with the finance taken out.
 
 ```bash
-pip install "reportkit @ git+https://github.com/diegogomezpy/report_maker@v0.6.0"
+pip install "reportkit @ git+https://github.com/diegogomezpy/report_maker@v0.7.0"
 ```
 
 ## Hello, report
@@ -27,14 +27,24 @@ doc.metric_band([("Net return", "8.4%"), ("Volatility", "11.2%"), ("Sharpe", "0.
 doc.subsection("Holdings")
 doc.data_table(["Asset", "Weight", "Return"],
                [["Equities", "62%", "+11.1%"], ["Credit", "28%", "+3.9%"]])
-doc.figure(png_bytes, "Cumulative return", "Acme, monthly")
+doc.figure(png_bytes, "Cumulative return", "Acme, monthly")   # any PNG bytes
 doc.callout("Note", "Past performance is not indicative of future results.")
 
 open("report.pdf", "wb").write(bytes(doc.output()))
 ```
 
-Runnable as `examples/hello.py`. Same content, different identity — change the
-three colours and the theme name, not the code.
+`png_bytes` is whatever your plotting library produced — reportkit takes PNG
+bytes and never imports a chart library. `examples/hello.py` is this same
+report, runnable, with a `placeholder_png` helper so it needs no data:
+
+```bash
+python examples/hello.py    # writes hello.pdf
+```
+
+Same content, different identity — change the three colours and the theme name,
+not the code.
+
+Requires Python 3.12+.
 
 ## Or describe the document as data
 
@@ -76,8 +86,10 @@ failing somewhere inside the PDF engine.
 | `reportkit.fonts` | Font registration. Ships IBM Plex Sans; points at your licensed brand faces when you have them. |
 | `reportkit.images` | Fetch, sanitise and embed images safely — including refusing decompression bombs and non-HTTP URLs. |
 | `reportkit.spec` | The declarative layer: a document spec (dict/JSON) → a rendered PDF. |
+| `reportkit.color` | CSS colour parsing, hue-aware palette remapping, and the default palette. In the core, not behind the charts extra — recolouring artwork is string rewriting, not plotting. |
+| `reportkit.text` | Sanitising strings for the PDF text layer, including the Latin-1 path a Helvetica fallback needs. |
 | `reportkit.charts` | *(extra)* Re-colour a Plotly figure into the brand palette and rasterise it. |
-| `reportkit.testing` | Deterministic inputs for rendering under test: seeded stand-in imagery, a figure stub that honours the requested pixel size, and `sample_document()` — a report touching every block, including a table long enough to split. |
+| `reportkit.testing` | Deterministic inputs for rendering under test: seeded stand-in imagery, a figure stub that honours the requested pixel size, and `sample_document()` — a report touching every block, including a table long enough to split and one that carries inline logos. `rasterise()` needs `pypdfium2` or PyMuPDF (both in the `dev` extra). |
 
 ## Design
 
@@ -89,31 +101,65 @@ failing somewhere inside the PDF engine.
   (`pip install "reportkit[charts]"`) because Kaleido drives a headless Chrome
   and most projects would rather hand over a PNG.
 - **Tested where it counts.** Colour parsing, the image security guards (path
-  containment, URL schemes, decompression bombs), font registration and the
-  spec validator have direct tests. On top of those, `reportkit.testing` builds
-  a sample document that exercises every block, and two suites guard it: a
-  per-page pixel golden, and a keep-together pagination sweep over table size x
-  starting height. Both were checked by MUTATION — a deliberately broken
-  `_table_room` must turn them red, and the first draft of the pagination suite
-  did not, so it was guarding nothing.
+  containment, URL schemes, decompression bombs), font registration, the spec
+  validator, the diagnostics contract and the outline tree all have direct
+  tests. On top of those, `reportkit.testing` builds a sample document that
+  exercises every block, and two suites guard it: a per-page **pixel golden**,
+  and a keep-together **pagination sweep** over table size × starting height.
+  Both are checked by MUTATION, which is the only way to know a regression test
+  earns its runtime — a deliberately broken `table_room` must turn each of them
+  red. The first draft of each did not, and both were rewritten:
+
+  | mutation | pagination sweep | pixel golden |
+  | --- | --- | --- |
+  | `SPLIT_ROOM` 40 → 20 | 13 failures | — |
+  | `table_room` capped at 130mm | 13 failures | — |
+  | ignore the claim in `data_table` | 1 failure | — |
+  | table row height 8.0 → 8.4 | — | 3 failures |
+  | `table_room` raises | — | 4 failures |
 
 ## Status
 
-`0.6.0` — extracted from a working production report generator, which still
+`0.7.0` — extracted from a working production report generator, which still
 uses it. The API is young and will move before `1.0`.
 
 Known gaps, so you can judge fit:
 
-- **No PDF bookmarks.** `start_section` is a pagination helper and shadows
-  fpdf2's outline API of the same name, so the document tree a reader shows in
-  its sidebar is not built. Renaming it is a breaking change held for `1.0`.
-- **Diagnostics go to `print`.** There is no logger; a host that wants brand
-  warnings in its log has to capture stdout.
+- **The API is not frozen.** Names still move between minor versions; `1.0` is
+  the rename-and-freeze release. See [CHANGELOG.md](CHANGELOG.md) for the
+  planned old → new table, and note the 0.7 deprecation shim on
+  `ReportDocument.start_section`.
+- **Two diagnostic channels, and you must choose where they go.** `logging` for
+  operational events (silent behind a `NullHandler` until you attach one) and
+  `Brand.warnings` for config validation. `logging` writes to stderr by default;
+  if your platform grades stderr as an error (Cloud Run does), attach your own
+  stdout handler to the `reportkit` logger.
+- **`reportkit.spec` covers a subset of the imperative API.** Blocks not in its
+  registry need `render_spec(spec, blocks={...})`.
 
 Closed since `0.2.x`, in case you read an older copy of this file: a brand
 config is now applied whole (`0.3.0`), covers and back pages have a builder
-(`0.4.0`), chapter numbering plus the contents list are in (`0.5.0`), and
-the package now has its own pixel and pagination guards (`0.6.0`).
+(`0.4.0`), chapter numbering plus the contents list are in (`0.5.0`), the
+package has its own pixel and pagination guards (`0.6.0`), and PDF bookmarks,
+clickable contents rows and `logging` all arrived in (`0.7.0`).
+
+## Writing a theme
+
+A theme draws through a small protocol the document exposes. If you subclass
+`ReportTheme` or hand `SpecTheme` your own spec, these are the names you can
+rely on — everything else on the document is an implementation detail:
+
+| | |
+| --- | --- |
+| `pdf.t(key)` | a chrome label in the document's language |
+| `pdf._safe(text)` | sanitise for the PDF text layer *(becomes `safe` at 1.0)* |
+| `pdf._sf(size, weight)` | set font by semantic weight *(becomes `sf`)* |
+| `pdf._fit_font(...)` | shrink a size until the text fits *(becomes `fit_font`)* |
+| `pdf._eyebrow(...)` | the small tracked-out label *(becomes `eyebrow`)* |
+| `pdf.ink` / `lime` / `teal` / `amber` / `panel` / `muted` / `body_ink` / `rule_soft` | palette-derived tokens |
+| `pdf.primary_color` / `accent_color` / `section_rule_color` | the brand palette |
+
+The underscores are historical and go away at 1.0; the set does not.
 
 ## Licence
 

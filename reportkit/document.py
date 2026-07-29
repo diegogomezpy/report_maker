@@ -132,7 +132,8 @@ _table_room = table_room
 
 
 class ReportDocument(FPDF):
-    """A4 portrait document with QIS-publication styling and IBM Plex Sans typography."""
+    """A4 portrait document: themed chrome, IBM Plex Sans, and pagination that
+    keeps a heading with the block it introduces."""
 
     def __init__(self, lang: str = "en", doc_ref: str = "",
                  primary_color: tuple = _DEFAULT_PRIMARY,
@@ -402,7 +403,8 @@ class ReportDocument(FPDF):
         ``min_room`` is the space the section title PLUS its first block need; we
         break to a fresh page when fewer than that many mm remain, so a title is
         never left stranded at the foot of a page with its chart/table overleaf.
-        The default (150) covers a title + a full-width chart (~120mm); sections
+        The default (`SECTION_ROOM`, 146) covers a title + a full-width chart
+        (~120mm); sections
         whose first block is short (issuer panel, glossary, disclaimer) pass a
         smaller value so they don't leave a big void.
         """

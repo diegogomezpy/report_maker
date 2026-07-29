@@ -22,9 +22,15 @@ imperatively (or hand over a document spec) and feed in your own content; the
     reportkit.branding  resolve a brand config — palette, logo, copy, fonts.
     reportkit.cover     full-bleed pages: the paint / photo / overlay order a
                         cover has to get right, as a context manager.
+    reportkit.outline   chapter numbering, the contents list (shrink then shed),
+                        and headings that draw only if something follows them.
+    reportkit.testing   deterministic inputs for rendering under test, and
+                        `sample_document()` — a report touching every block.
 
-Extracted from a working application, every slice guarded by a byte-level fingerprint of that application's
-rendered reports, so a move that changes output fails.
+Extracted from a working application, every slice guarded by a byte-level
+fingerprint of that application's rendered reports, so a move that changes
+output fails. The package now carries its own pixel and pagination guards too —
+see CHANGELOG.md.
 
 Only `fpdf2` and `Pillow` are required. Plotly figure rendering lives behind the
 `charts` extra because Kaleido drives a headless Chrome; the core takes PNG

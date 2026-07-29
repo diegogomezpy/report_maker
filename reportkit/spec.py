@@ -25,9 +25,13 @@ a stack trace about a float. A report is often generated from user input, and
 "which key did I get wrong" is the only question worth answering.
 
 **There is an escape hatch.** No fixed vocabulary survives contact with a real
-project — there is always one bespoke diagram. A `{"custom": "name"}` block
-dispatches to a callable you pass in `blocks=`, so one unusual drawing does not
-push you off the declarative path for the other 95% of the document.
+project — there is always one bespoke diagram. `render(spec, blocks={"gauge":
+draw_gauge})` REGISTERS a renderer under that name, so `{"gauge": {...}}`
+becomes a legal block; passing a built-in name overrides it. One unusual drawing
+does not push you off the declarative path for the other 95% of the document.
+
+(There is no `{"custom": ...}` indirection. This docstring described one for
+several releases; it raised `SpecError: unknown block 'custom'`.)
 """
 from __future__ import annotations
 
@@ -142,8 +146,8 @@ def render(spec: dict, blocks: dict | None = None) -> bytes:
     """Render a document spec to PDF bytes.
 
     `blocks` adds or overrides block renderers, each a `(doc, value, path)`
-    callable, reached from a spec via `{"custom": ...}` or by shadowing a
-    built-in name.
+    callable, keyed by the block NAME it answers to — `{"gauge": draw_gauge}`
+    makes `{"gauge": {...}}` legal, and a built-in name replaces that built-in.
     """
     _need(spec, dict, "spec")
     registry = dict(BLOCKS)
