@@ -26,6 +26,13 @@ jobs:
               sys.exit("plotly is installed in the core job — the extra leaked")
           PY
       - run: python -c "import reportkit; print(reportkit.__version__)"
+      # Dead imports are how a module keeps a dependency it no longer uses, and
+      # F811 is how two definitions of one method coexist with the first
+      # silently unreachable. Both were live in the package until 0.7.
+      - name: No unused imports, no shadowed definitions
+        run: |
+          pip install ruff
+          ruff check --select F401,F811 reportkit/
       - run: pytest -q -m "not charts"
 
   full:

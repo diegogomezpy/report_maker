@@ -51,8 +51,14 @@ def _load() -> dict:
 @pytest.mark.parametrize("theme,imagery", CASES)
 def test_the_sample_document_is_pixel_identical(theme, imagery):
     key = f"{theme}/{'imagery' if imagery else 'plain'}"
+    # Render OUTSIDE the skip guard. `rasterise` raises RuntimeError when no
+    # rasteriser is installed, which is a legitimate skip — but building the
+    # document raises RuntimeError too, and catching both here reported a
+    # document that failed to build as "no rasteriser installed" and skipped.
+    # A broken render must be a failure, not a quiet pass.
+    pdf_bytes = _render(theme, imagery)
     try:
-        pages = rkt.rasterise(_render(theme, imagery))
+        pages = rkt.rasterise(pdf_bytes)
     except RuntimeError as exc:                        # no rasteriser installed
         pytest.skip(str(exc))
     digests = [h for h, _ in pages]

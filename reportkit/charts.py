@@ -20,10 +20,6 @@ Two things live here rather than in the core:
 """
 from __future__ import annotations
 
-import os
-import shutil
-import subprocess
-import sys
 import threading
 import warnings
 from contextlib import contextmanager

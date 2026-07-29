@@ -23,7 +23,7 @@ import base64
 import warnings
 from dataclasses import dataclass, field
 
-from reportkit.images import (fetch_image_bytes, read_local_image,
+from reportkit.images import (read_local_image,
                               resolve_within, to_embeddable_png)
 
 #: Fallback palette for a brand that supplies nothing.

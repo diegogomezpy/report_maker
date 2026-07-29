@@ -188,7 +188,7 @@ def sample_document(theme: str | None = None, *, imagery: bool = True,
 
     import reportkit.branding as branding
     import reportkit.outline as outline
-    from reportkit.document import ReportDocument
+    from reportkit.document import ReportDocument, _table_room
 
     if font_dir is None:
         font_dir = Path(__file__).resolve().parent / "fonts"
@@ -246,14 +246,30 @@ def sample_document(theme: str | None = None, *, imagery: bool = True,
     # A heading immediately followed by a table too long to fit under it. This
     # is what `_table_room` is for, and getting it wrong strands the heading on
     # a page the table has left.
+    #
+    # `min_room=_table_room(...)` is the documented call-site contract, and
+    # passing it here is the point: without it this sample takes `subsection`'s
+    # 27mm default, never enters the reservation chain, and the pixel golden
+    # renders identically to one built with `table_room` rebound to *raise*.
     pdf.section_divider(nums["holdings"], "HOLDINGS", "What we own")
-    pdf.subsection("Positions")
+    pdf.subsection("Positions", min_room=_table_room(len(LONG_TABLE)))
     pdf.data_table(["Name", "Weight", "Price", "Held"], LONG_TABLE)
-    pdf.subsection("Concentration")
+    pdf.subsection("Concentration", min_room=_table_room(2))
     pdf.data_table(["Bucket", "Weight"], [["Top 5", "31%"], ["Top 10", "48%"]])
 
+    # The logo-row variant: 110 lines of public drawing code that no test in
+    # this package reached before it appeared here.
+    pdf.subsection("By holding", min_room=_table_room(3, row_h=10.0))
+    pdf.logo_row_table(["Name", "Weight", "Return"],
+                       [["Alpha Corp", "12.0%", "+4.1%"],
+                        ["Beta SA", "9.5%", "-1.2%"],
+                        ["Gamma Inc", "7.25%", "+8.8%"]],
+                       {"Alpha Corp": labelled_png(64, 64, "A"),
+                        "Beta SA": None,          # the missing-logo branch
+                        "Gamma Inc": labelled_png(64, 64, "G")})
+
     pdf.section_divider(nums["risk"], "RISK", "Exposures")
-    pdf.subsection("By factor")
+    pdf.subsection("By factor", min_room=_table_room(2))
     pdf.data_table(["Factor", "Beta"], [["Equity", "0.61"], ["Rates", "-0.12"]])
 
     # ── back page ────────────────────────────────────────────────────────

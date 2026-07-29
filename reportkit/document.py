@@ -26,24 +26,19 @@ cleanup.
 """
 from __future__ import annotations
 
-import datetime
 import io
-import math
 
 from fpdf import FPDF
 
 import reportkit.cover as _rk_cover
 import reportkit.fonts as _rk_fonts
-from reportkit.images import (cover_crop, logo_aspect as _logo_aspect,
-                              to_embeddable_png)
+from reportkit.images import (logo_aspect as _logo_aspect)
 from reportkit.text import _safe
 from reportkit.charts import DEFAULT_ACCENT as _DEFAULT_ACCENT, \
-    DEFAULT_PRIMARY as _DEFAULT_PRIMARY, DEFAULT_SECONDARY as _DEFAULT_SECONDARY
+    DEFAULT_PRIMARY as _DEFAULT_PRIMARY
 from reportkit.theme import (
-    AMBER as _AMBER, AMBER_DARK as _AMBER_DARK, BODY_INK as _BODY_INK,
-    BLACK as _BLACK, FOOTNOTE_GREY as _FOOTNOTE_GREY, MUTED as _MUTED,
-    ROW_ALT as _ROW_ALT, RULE_SOFT as _RULE_SOFT, TEXT as _TEXT,
-    TEXT_SOFT as _TEXT_SOFT, WHITE as _WHITE,
+    ROW_ALT as _ROW_ALT, TEXT as _TEXT,
+    WHITE as _WHITE,
     build_tokens, resolve_theme, resolve_watermark, blend as _blend,
     ReportTheme,
 )
@@ -274,8 +269,6 @@ class ReportDocument(FPDF):
 
         Writes exactly `reportkit.branding.APPLIED_ATTRS`.
         """
-        from reportkit import branding as _b
-        from reportkit.theme import resolve_watermark
 
         self.firm_name = brand.firm_name or self.firm_name
         self.firm_logo_bytes = brand.logo

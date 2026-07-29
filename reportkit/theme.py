@@ -451,18 +451,6 @@ class ReportTheme:
         except Exception:
             return False
 
-    # ── cover (summary page) brand graphics ────────────────────────────────
-    def cover_masthead(self, pdf, x0, y_m, W, MH) -> None:
-        """Draw the cover masthead background panel (the eyebrow / note-name /
-        KPI text is drawn on top by the cover builder, in white)."""
-        raise NotImplementedError
-
-    def cover_left_void_fill(self, pdf, x0, sc, bottom) -> None:
-        """Fill the cover's empty left column (below the rail) when no photo took
-        it — a faint brand-graphic composition."""
-        raise NotImplementedError
-
-
 # ══════════════════════════════════════════════════════════════════════════════
 # Declarative theme spec engine
 # ══════════════════════════════════════════════════════════════════════════════
