@@ -169,6 +169,23 @@ def _chamfer_dims(w: float, h: float, c=None, q=None, r=None):
     return c, q, r
 
 
+def shape_inset(shape, w: float, h: float) -> float:
+    """Horizontal padding content needs to clear a shape's cut corners.
+
+    A chamfer removes a triangle from each cut corner, so anything drawn at the
+    panel's own left/right edge is clipped by exactly that much — and the cut
+    scales with the panel (14% of the smaller dimension by default), so a theme
+    that enlarges it silently eats into whatever the caller drew inside.
+
+    Returns 0 for square/rounded shapes, which have no diagonal to clear.
+    """
+    kind, geom = _shape_kind(shape or {})
+    if kind != "chamfer":
+        return 0.0
+    c, _q, _r = _chamfer_dims(w, h, geom.get("c"), geom.get("q"), geom.get("r"))
+    return float(c)
+
+
 def _fill_chamfer(pdf, x: float, y: float, w: float, h: float,
                   rgb: tuple[int, int, int], c=None, q=None, r=None,
                   opacity: float = 1.0) -> None:
@@ -1034,4 +1051,5 @@ __all__ = [
     "register_theme",
     "resolve_color",
     "resolve_theme",
+    "shape_inset",
 ]

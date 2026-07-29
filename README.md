@@ -8,7 +8,7 @@ It grew out of a structured-note analytics app whose report generator was worth
 more than the app it lived in. This is that generator with the finance taken out.
 
 ```bash
-pip install "reportkit @ git+https://github.com/diegogomezpy/report_maker@v1.1.0"
+pip install "reportkit @ git+https://github.com/diegogomezpy/report_maker@v1.2.0"
 ```
 
 ## Hello, report
@@ -120,7 +120,7 @@ failing somewhere inside the PDF engine.
 
 ## Status
 
-`1.1.0` — extracted from a working production report generator, which still
+`1.2.0` — extracted from a working production report generator, which still
 uses it. **The API is frozen**: names will not move again without a major
 version. See [CHANGELOG.md](CHANGELOG.md) for the 0.7 → 1.0 migration table.
 

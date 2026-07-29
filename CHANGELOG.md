@@ -4,6 +4,16 @@ Notable changes to `reportkit`. Format follows [Keep a Changelog](https://keepac
 versioning is [semver](https://semver.org/). **The API is frozen at 1.0** — names
 will not move again without a major version.
 
+## [1.2.0] — 2026-07-29
+
+### Added
+
+- `theme.shape_inset(shape, w, h)` — the horizontal padding content needs to
+  clear a shape's cut corners. A chamfer removes a triangle from each corner and
+  the cut SCALES with the panel (14% of the smaller dimension by default), so a
+  theme that enlarged it silently clipped whatever the caller had drawn inside
+  at a fixed padding. Returns 0 for square and rounded shapes.
+
 ## [1.1.0] — 2026-07-29
 
 ### Removed
