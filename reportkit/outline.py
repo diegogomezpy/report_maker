@@ -31,6 +31,7 @@ order.
 """
 from __future__ import annotations
 
+from reportkit.document import SECTION_ROOM
 from reportkit.text import _safe
 from reportkit.theme import RULE_SOFT as _RULE_SOFT
 
@@ -170,7 +171,7 @@ def lazy_divider(pdf, number: str, kicker: str, heading: str):
     return ensure
 
 
-def lazy_section(pdf, title: str, min_room: float = 146.0, before=None):
+def lazy_section(pdf, title: str, min_room: float = SECTION_ROOM, before=None):
     """A section heading drawn at most once, on first `ensure()`.
 
     `before` is another lazy head fired first (they are idempotent), so

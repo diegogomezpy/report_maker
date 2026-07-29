@@ -249,6 +249,42 @@ def test_the_reservation_grows_with_the_table():
     assert got == sorted(got), "a longer kept-whole table must reserve more"
 
 
+# ── the logo-row variant ─────────────────────────────────────────────────────
+
+def test_logo_row_table_consumes_the_claim_it_was_given():
+    """It is introduced by a heading that reserved for it with `table_room`, so
+    it must consume that reservation like `data_table` does.
+
+    It used not to. The claim then stayed set, and the next `data_table` on the
+    page skipped its own keep-together rule — spending a reservation made for a
+    different block, with no heading above it.
+    """
+    pdf = Recorder()
+    pdf.add_page()
+    pdf.subsection("Holdings", min_room=_table_room(3, row_h=10.0))
+    pdf.logo_row_table(["Name", "Weight"], [["A", "1%"], ["B", "2%"]], {})
+    assert pdf._head_claimed() is False, "claim leaked to the next block"
+
+
+@pytest.mark.parametrize("n", [2, 8, 16, 23, 24, 30])
+def test_a_heading_keeps_its_logo_row_table(n):
+    """Includes 23 rows, where the reservation and `logo_row_table`'s own rule
+    provably disagree — the size the host's ticker table reaches once a note has
+    enough underlyings, and the one a smoke test would miss."""
+    bad = []
+    for room in ROOMS:
+        pdf = Recorder()
+        pdf.add_page()
+        fill_to(pdf, room)
+        pdf.subsection("Holdings", min_room=_table_room(n, row_h=10.0))
+        pdf.logo_row_table(["Name", "Weight"],
+                           [[f"Row {i:02d}", f"{i}%"] for i in range(1, n + 1)], {})
+        head, first = pdf.page_of("Holdings"), pdf.page_of("Row 01")
+        if head is None or first is None or head != first:
+            bad.append((room, head, first))
+    assert not bad, f"{n} rows orphaned at {bad}"
+
+
 # ── the claim protocol ───────────────────────────────────────────────────────
 
 def test_the_claim_is_consumed_once():

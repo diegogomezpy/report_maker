@@ -27,12 +27,12 @@ from contextvars import ContextVar
 
 from reportkit.color import remap_color, rgb_to_hue  # noqa: F401  (host re-exports)
 
-# Fallback palette, used only when a caller passes no colours. Identical to the
-# host's historical defaults — these reach real output, so they are values, not
-# placeholders.
-DEFAULT_PRIMARY   = (26, 46, 74)
-DEFAULT_ACCENT    = (37, 99, 235)
-DEFAULT_SECONDARY = (198, 148, 38)
+# Fallback palette, used only when a caller passes no colours. Defined in
+# `reportkit.color` (the core) and re-exported here, so the optional extra is
+# not where the core has to reach for a constant.
+from reportkit.color import (  # noqa: E402,F401
+    DEFAULT_ACCENT, DEFAULT_PRIMARY, DEFAULT_SECONDARY,
+)
 
 # Set by a host to intercept figure rasterisation; see the module docstring.
 # Signature: hook(fig, width, height, *colors) -> bytes | None. Returning None

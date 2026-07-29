@@ -32,6 +32,8 @@ push you off the declarative path for the other 95% of the document.
 from __future__ import annotations
 
 from reportkit.document import ReportDocument
+from reportkit.color import (DEFAULT_ACCENT, DEFAULT_PRIMARY,
+                             DEFAULT_SECTION_RULE)
 from reportkit.theme import resolve_theme
 
 
@@ -153,9 +155,12 @@ def render(spec: dict, blocks: dict | None = None) -> bytes:
         lang=str(spec.get("lang", "en")),
         doc_ref=str(brand.get("doc_ref", "") or spec.get("title", "")),
         firm_name=str(brand.get("firm_name", "") or ""),
-        primary_color=_hex(brand.get("primary"), (26, 46, 74)),
-        accent_color=_hex(brand.get("accent"), (37, 99, 235)),
-        section_rule_color=_hex(brand.get("section_rule"), (163, 200, 63)),
+        primary_color=_hex(brand.get("primary"), DEFAULT_PRIMARY),
+        accent_color=_hex(brand.get("accent"), DEFAULT_ACCENT),
+        # Was a hard-coded lime (163, 200, 63) — a fixture colour that had leaked
+        # in and disagreed with both `ReportDocument.__init__` and
+        # `resolve_palette`, which default the rule to the ACCENT.
+        section_rule_color=_hex(brand.get("section_rule"), DEFAULT_SECTION_RULE),
         theme=resolve_theme(brand.get("theme")),
     )
     doc.add_page()

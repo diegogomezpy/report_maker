@@ -26,10 +26,11 @@ from dataclasses import dataclass, field
 from reportkit.images import (read_local_image,
                               resolve_within, to_embeddable_png)
 
-#: Fallback palette for a brand that supplies nothing.
-DEFAULT_PRIMARY   = (26, 46, 74)
-DEFAULT_ACCENT    = (37, 99, 235)
-DEFAULT_SECONDARY = (198, 148, 38)
+#: Fallback palette for a brand that supplies nothing. Defined in
+#: `reportkit.color` and re-exported here for one release; import it from there.
+from reportkit.color import (  # noqa: E402,F401
+    DEFAULT_ACCENT, DEFAULT_PRIMARY, DEFAULT_SECONDARY, DEFAULT_SECTION_RULE,
+)
 
 #: Keys reportkit itself understands. A host extends this via
 #: `validate_branding(cfg, extra_keys=...)` rather than editing it.

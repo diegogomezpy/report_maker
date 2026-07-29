@@ -34,8 +34,8 @@ import reportkit.cover as _rk_cover
 import reportkit.fonts as _rk_fonts
 from reportkit.images import (logo_aspect as _logo_aspect)
 from reportkit.text import _safe
-from reportkit.charts import DEFAULT_ACCENT as _DEFAULT_ACCENT, \
-    DEFAULT_PRIMARY as _DEFAULT_PRIMARY
+from reportkit.color import (DEFAULT_ACCENT as _DEFAULT_ACCENT,
+                             DEFAULT_PRIMARY as _DEFAULT_PRIMARY)
 from reportkit.theme import (
     ROW_ALT as _ROW_ALT, TEXT as _TEXT,
     WHITE as _WHITE,
@@ -60,21 +60,30 @@ CHROME_LABELS = {
 }
 
 
-_TBL_ROW_H  = 8.0
-_TBL_HEAD_H = 9.0
-_TBL_PAD    = 6.0
-_PAGE_CAP   = 246.0   # h(297) - footer(30) - running header(21): a fresh page's room
-_HEAD_ROOM  = 10.0    # vertical space a sub-heading itself consumes (ln+cell+ln)
+#: The table geometry the keep-together chain is expressed in. PUBLIC at 1.0:
+#: a call site cannot honour `subsection(min_room=table_room(n))` without them,
+#: so they are contract, not implementation. `data_table` draws with these too —
+#: it used to draw with hard-coded 8 and 9, two copies of one quantity that
+#: agreed by coincidence.
+TBL_ROW_H  = 8.0
+TBL_HEAD_H = 9.0
+TBL_PAD    = 6.0
+PAGE_CAP   = 246.0   # h(297) - footer(30) - running header(21): a fresh page's room
+HEAD_ROOM  = 10.0    # vertical space a sub-heading itself consumes (ln+cell+ln)
+#: The room `start_section` reserves by default: a title plus a full-width
+#: figure. Defined here rather than repeated at each call site — `outline.py`
+#: had its own copy of this number.
+SECTION_ROOM = 146.0
 # Minimum a heading must see before a table that is going to split anyway.
 # Derived, not chosen: data_table gives up and breaks when y > h - 55, so the
 # heading has to leave the cursor at or above that. It draws at
-# `h - b_margin - _SPLIT_ROOM` in the worst case and consumes _HEAD_ROOM, giving
-#   h - 28 - _SPLIT_ROOM + _HEAD_ROOM  <=  h - 55   ⇒  _SPLIT_ROOM >= 37.
+# `h - b_margin - SPLIT_ROOM` in the worst case and consumes HEAD_ROOM, giving
+#   h - 28 - SPLIT_ROOM + HEAD_ROOM  <=  h - 55   ⇒  SPLIT_ROOM >= 37.
 # 40 keeps a little slack so the two are not exactly equal.
-_SPLIT_ROOM = 40.0
+SPLIT_ROOM = 40.0
 
 
-def _table_room(n_rows: int, row_h: float = _TBL_ROW_H, head_h: float = _TBL_HEAD_H) -> float:
+def table_room(n_rows: int, row_h: float = TBL_ROW_H, head_h: float = TBL_HEAD_H) -> float:
     """Room a sub-heading must see before drawing, for a table of `n_rows`.
 
     Includes the heading's own height, so call sites pass this straight to
@@ -90,14 +99,21 @@ def _table_room(n_rows: int, row_h: float = _TBL_ROW_H, head_h: float = _TBL_HEA
     The previous version capped at 130mm while data_table measured the full
     height uncapped, so every table of roughly 16-29 rows orphaned its heading.
 
-    Note the threshold is `_PAGE_CAP - _HEAD_ROOM`, not `_PAGE_CAP`: a table kept
+    Note the threshold is `PAGE_CAP - HEAD_ROOM`, not `PAGE_CAP`: a table kept
     whole UNDER A HEADING starts ~10mm lower than one on a bare page, so a table
     that fits 246mm but not 236mm cannot be kept whole here at all. Promising to
     reserve it anyway just moved the collision one page along — the heading broke
     to a fresh page, drew, and the table broke out from under it again.
     """
-    full = head_h + n_rows * row_h + _TBL_PAD
-    return (full + 12.0) if full <= _PAGE_CAP - _HEAD_ROOM else _SPLIT_ROOM
+    full = head_h + n_rows * row_h + TBL_PAD
+    return (full + 12.0) if full <= PAGE_CAP - HEAD_ROOM else SPLIT_ROOM
+
+
+# Deprecated aliases, kept for one release so a consumer pinned to 0.6 keeps
+# working. Removed at 1.0 — see CHANGELOG "Upgrading to 1.0".
+_TBL_ROW_H, _TBL_HEAD_H, _TBL_PAD = TBL_ROW_H, TBL_HEAD_H, TBL_PAD
+_PAGE_CAP, _HEAD_ROOM, _SPLIT_ROOM = PAGE_CAP, HEAD_ROOM, SPLIT_ROOM
+_table_room = table_room
 
 
 class ReportDocument(FPDF):
@@ -351,7 +367,7 @@ class ReportDocument(FPDF):
     # ------------------------------------------------------------------
     # Building blocks
     # ------------------------------------------------------------------
-    def start_section(self, text: str, min_room: float = 146.0):
+    def start_section(self, text: str, min_room: float = SECTION_ROOM):
         """Begin a major section, breaking to a new page only when needed.
 
         ``min_room`` is the space the section title PLUS its first block need; we
@@ -519,16 +535,16 @@ class ReportDocument(FPDF):
             if rounded_card:
                 self.set_fill_color(*self.ink)
                 try:
-                    self.rect(self.l_margin, self.get_y(), tbl_w, _TBL_HEAD_H, style="F",
+                    self.rect(self.l_margin, self.get_y(), tbl_w, TBL_HEAD_H, style="F",
                               round_corners=("TOP_LEFT", "TOP_RIGHT"), corner_radius=_CR)
                 except TypeError:
-                    self.rect(self.l_margin, self.get_y(), tbl_w, _TBL_HEAD_H, style="F")
+                    self.rect(self.l_margin, self.get_y(), tbl_w, TBL_HEAD_H, style="F")
             else:
                 self.set_fill_color(*self.ink)
             self._sf(7.5, "body_bold")
             for idx, (h, w, a) in enumerate(zip(headers, col_widths, aligns)):
                 self.set_text_color(*(self.lime if idx == 0 else _WHITE))
-                self.cell(w, _TBL_HEAD_H, f" {h} ", border=0, fill=not rounded_card, align=a)
+                self.cell(w, TBL_HEAD_H, f" {h} ", border=0, fill=not rounded_card, align=a)
             self.ln()
             self.set_text_color(*_TEXT)
             self._sf(8, "regular")
@@ -539,14 +555,14 @@ class ReportDocument(FPDF):
         # `_table_room` above predicts this rule for the sub-heading that
         # introduces the table; the two MUST stay in step or the heading gets
         # orphaned on the page the table just left.
-        _needed = _TBL_HEAD_H + len(rows) * _TBL_ROW_H + _TBL_PAD
+        _needed = TBL_HEAD_H + len(rows) * TBL_ROW_H + TBL_PAD
         _avail  = self.h - 30 - self.get_y()
         if self._head_claimed():
             # A heading directly above already reserved for us; only break if we
             # cannot even start here (which its reservation should have avoided).
             if self.get_y() > self.h - 55:
                 self.add_page()
-        elif _needed > _avail and _needed <= _PAGE_CAP:
+        elif _needed > _avail and _needed <= PAGE_CAP:
             self.add_page()
         elif self.get_y() > self.h - 55:
             self.add_page()
@@ -581,20 +597,20 @@ class ReportDocument(FPDF):
                     self.set_fill_color(*_ROW_ALT)
                     if i == _last:
                         try:
-                            self.rect(self.l_margin, self.get_y(), tbl_w, _TBL_ROW_H, style="F",
+                            self.rect(self.l_margin, self.get_y(), tbl_w, TBL_ROW_H, style="F",
                                       round_corners=("BOTTOM_LEFT", "BOTTOM_RIGHT"),
                                       corner_radius=_CR)
                         except TypeError:
-                            self.rect(self.l_margin, self.get_y(), tbl_w, _TBL_ROW_H, style="F")
+                            self.rect(self.l_margin, self.get_y(), tbl_w, TBL_ROW_H, style="F")
                     else:
-                        self.rect(self.l_margin, self.get_y(), tbl_w, _TBL_ROW_H, style="F")
+                        self.rect(self.l_margin, self.get_y(), tbl_w, TBL_ROW_H, style="F")
                 for cell_val, w, a in zip(row, col_widths, aligns):
-                    self.cell(w, _TBL_ROW_H, f" {cell_val} ", border=0, fill=False, align=a)
+                    self.cell(w, TBL_ROW_H, f" {cell_val} ", border=0, fill=False, align=a)
                 self.ln()
             else:
                 self.set_fill_color(*(_ROW_ALT if is_alt else _WHITE))
                 for cell_val, w, a in zip(row, col_widths, aligns):
-                    self.cell(w, _TBL_ROW_H, f" {cell_val} ", border=0, fill=True, align=a)
+                    self.cell(w, TBL_ROW_H, f" {cell_val} ", border=0, fill=True, align=a)
                 self.ln()
 
     def logo_row_table(self, headers: list[str], rows: list[list[str]],
@@ -636,11 +652,23 @@ class ReportDocument(FPDF):
             self.set_text_color(*_TEXT)
             self._sf(8, "regular")
 
-        # Keep the whole table together when it fits on one page (see data_table).
+        # Keep the whole table together when it fits on one page — the same
+        # three-way decision as `data_table`, and it must be the same one: a
+        # heading above reserved room using `table_room`, and a second opinion
+        # taken here can only disagree with it.
+        #
+        # Consuming the claim is not optional even where the branch is a no-op.
+        # This method used not to call `_head_claimed()` at all, so the claim
+        # stayed set and the NEXT `data_table` on the page skipped its own
+        # keep-together rule with no heading above it — a stale reservation
+        # spent by a block that never made one.
         _needed   = HEAD_H + len(rows) * ROW_H + 6
         _avail    = self.h - 30 - self.get_y()
         _page_cap = self.h - 30 - 21
-        if _needed > _avail and _needed <= _page_cap:
+        if self._head_claimed():
+            if self.get_y() > self.h - 55:
+                self.add_page()
+        elif _needed > _avail and _needed <= _page_cap:
             self.add_page()
         elif self.get_y() > self.h - 55:
             self.add_page()

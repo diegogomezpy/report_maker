@@ -18,6 +18,22 @@ from __future__ import annotations
 import colorsys
 import re
 
+
+#: Fallback palette, used when a caller supplies no colours. These reach real
+#: output — they are values, not placeholders.
+#:
+#: They live HERE, in the leaf module, because both `branding` (which resolves a
+#: brand) and `charts` (the optional extra) need them, and `document` needs them
+#: at import time. Defining them in `charts` made the CORE import the EXTRA;
+#: defining them in `branding` too made three copies of one palette, which
+#: agreed only because nobody had edited one of them yet.
+DEFAULT_PRIMARY   = (26, 46, 74)
+DEFAULT_ACCENT    = (37, 99, 235)
+DEFAULT_SECONDARY = (198, 148, 38)
+#: The section rule defaults to the accent — one source, so a fourth colour
+#: cannot drift in as it did in `spec.render`.
+DEFAULT_SECTION_RULE = DEFAULT_ACCENT
+
 # The hue band, in degrees, treated as "this is a blue ramp, rotate it".
 # Deliberately a parameter rather than a constant at the call site: it is the
 # only tunable in the remap, and hard-coding it was how the behaviour became

@@ -61,7 +61,11 @@ from reportkit.theme import (  # noqa: F401
 from reportkit.images import cover_crop, configure_limits  # noqa: F401
 from reportkit.cover import full_bleed, MINT  # noqa: F401
 from reportkit.color import parse_rgb, remap_color, rgb_to_hue  # noqa: F401
-from reportkit.document import ReportDocument, CHROME_LABELS  # noqa: F401
+from reportkit.document import (  # noqa: F401
+    ReportDocument, CHROME_LABELS, table_room,
+    TBL_ROW_H, TBL_HEAD_H, TBL_PAD, PAGE_CAP, HEAD_ROOM, SPLIT_ROOM,
+    SECTION_ROOM,
+)
 from reportkit.text import _safe as sanitise  # noqa: F401
 from reportkit.spec import render as render_spec, SpecError  # noqa: F401
 from reportkit.branding import (  # noqa: F401
@@ -85,6 +89,8 @@ __all__ = [
     "MERCATOR_SPEC",
     "ReportDocument",
     "CHROME_LABELS",
+    "table_room",
+    "SECTION_ROOM",
     "sanitise",
     "render_spec",
     "Brand",
